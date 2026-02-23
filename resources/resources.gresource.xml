@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- vim: set sw=2: -->
+<gresources>
+  <gresource prefix="/io/github/lost-melody/NeoDock/">
+  </gresource>
+</gresources>
