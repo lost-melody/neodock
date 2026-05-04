@@ -3,13 +3,14 @@ use std::env;
 use gtk::{gdk, gio, glib};
 use gtk4 as gtk;
 
-use crate::constants::TEXT_DOMAIN;
+use crate::constants::{CONFIG_DIR, TEXT_DOMAIN};
 use crate::utils::gresource::resource_path;
 
 pub fn init() -> anyhow::Result<()> {
     init_gettext().map_err(|e| anyhow::anyhow!("gettext: {e}"))?;
     init_gresources().map_err(|e| anyhow::anyhow!("gresources: {e}"))?;
-    gtk::init().map_err(|e| anyhow::anyhow!("gtk: {e}"))?;
+    adw::init().map_err(|e| anyhow::anyhow!("gtk: {e}"))?;
+    init_config_dir().map_err(|e| anyhow::anyhow!("create config dir: {e}"))?;
     init_icon_theme().map_err(|e| anyhow::anyhow!("icon theme: {e}"))?;
 
     Ok(())
@@ -33,10 +34,21 @@ fn init_gresources() -> anyhow::Result<()> {
 }
 
 fn init_icon_theme() -> anyhow::Result<()> {
-    let Some(display) = gdk::Display::default() else {
-        return Err(anyhow::anyhow!("unable to retrieve gdk display"));
-    };
+    let display = gdk::Display::default().ok_or(anyhow::anyhow!("unable to retrieve gdk display"))?;
     gtk::IconTheme::for_display(&display).add_resource_path(&resource_path("icons"));
+
+    Ok(())
+}
+
+fn init_config_dir() -> anyhow::Result<()> {
+    std::fs::create_dir_all(&*CONFIG_DIR)?;
+
+    for filename in ["config.toml", "style.css"] {
+        let path = CONFIG_DIR.join(filename);
+        if !path.exists() {
+            std::fs::File::create(path)?;
+        }
+    }
 
     Ok(())
 }
