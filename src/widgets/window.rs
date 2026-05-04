@@ -7,7 +7,7 @@ use layer_shell::{Edge, Layer, LayerShell};
 
 glib::wrapper! {
     pub struct NeoWindow(ObjectSubclass<imp::NeoWindowImpl>)
-        @extends gtk::Window, gtk::Widget,
+        @extends adw::Window, gtk::Window, gtk::Widget,
         @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget, gtk::Native, gtk::Root, gtk::ShortcutManager;
 }
 
@@ -42,14 +42,12 @@ impl NeoWindow {
 mod imp {
     use std::cell::RefCell;
 
-    use declarative::{block, construct};
+    use adw::prelude::*;
+    use adw::subclass::prelude::*;
+    use declarative::block;
     use gtk::glib;
-    use gtk::prelude::*;
-    use gtk::subclass::prelude::*;
     use gtk4 as gtk;
 
-    use crate::prelude::*;
-    use crate::utils::log;
     use crate::widgets;
 
     type Obj = super::NeoWindow;
@@ -68,59 +66,14 @@ mod imp {
             let win = self.obj();
 
             block!(win.clone() {
-                set_child: Some(&_) @gtk::Overlay view {
-                    hexpand: true
-                    child: &_ @widgets::DockView::new() {
-                    }
-                    ~
-
-                    add_overlay: &_ @gtk::Label {
-                        label: "Overlay"
-                    }
-                }
-
+                set_width_request: -1
+                set_height_request: -1
+                set_resizable: false
                 add_css_class: "neodock-window"
+                set_content: Some(&_) @widgets::DockView::new() {}
             });
 
             self.view.replace(None);
-
-            win.with_application(|win, app| {
-                match app.downcast::<crate::NeoDockApp>() {
-                    Ok(app) => win.imp().connect_niri(&app),
-                    Err(app) => {
-                        log::critical!("a NeoDockApp is required");
-                        app.quit();
-                    }
-                };
-            });
-        }
-
-        fn connect_niri(&self, app: &crate::NeoDockApp) {
-            let niri = app.niri();
-            niri.connect_window_created_notify(|niri| {
-                // NOTE: debugging.
-                let win = niri.window_created();
-                log::message!("new window: {}, {}", win.id(), win.title().unwrap_or_default());
-                win.connect_closed_notify(|win| {
-                    log::message!("window closed: {}, {}", win.id(), win.title().unwrap_or_default());
-                });
-            });
-            niri.connect_focused_window_notify(|niri| {
-                // NOTE: debugging.
-                if let Some(win) = niri.focused_window() {
-                    log::message!("focused window: {}, {}", win.id(), win.title().unwrap_or_default());
-                } else {
-                    log::message!("unfocused window");
-                }
-            });
-            niri.connect_overview_is_open_notify(|niri| {
-                // NOTE: debugging.
-                if niri.overview_is_open() {
-                    log::message!("overview opened");
-                } else {
-                    log::message!("overview closed");
-                }
-            });
         }
     }
 
@@ -128,7 +81,7 @@ mod imp {
     impl ObjectSubclass for NeoWindowImpl {
         const NAME: &'static str = "NeoDockNeoWindow";
         type Type = Obj;
-        type ParentType = gtk::Window;
+        type ParentType = adw::Window;
     }
 
     #[glib::derived_properties]
@@ -141,4 +94,5 @@ mod imp {
 
     impl WidgetImpl for NeoWindowImpl {}
     impl WindowImpl for NeoWindowImpl {}
+    impl AdwWindowImpl for NeoWindowImpl {}
 }

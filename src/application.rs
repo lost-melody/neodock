@@ -4,7 +4,7 @@ use gtk4 as gtk;
 
 glib::wrapper! {
     pub struct NeoDockApp(ObjectSubclass<imp::NeoDockAppImpl>)
-        @extends gtk::Application, gio::Application,
+        @extends adw::Application, gtk::Application, gio::Application,
         @implements gio::ActionGroup, gio::ActionMap;
 }
 
@@ -27,14 +27,14 @@ impl NeoDockApp {
 mod imp {
     use std::cell::{Cell, RefCell};
 
+    use adw::subclass::prelude::*;
     use gtk::prelude::*;
-    use gtk::subclass::prelude::*;
-    use gtk::{gdk, glib};
+    use gtk::{gdk, gio, glib};
     use gtk4 as gtk;
 
     use crate::constants;
     use crate::services::niri;
-    use crate::utils::log;
+    use crate::utils::{gresource, log};
     use crate::widgets;
 
     type Obj = super::NeoDockApp;
@@ -61,8 +61,8 @@ mod imp {
             }
             self.activated.set(true);
 
-            let Some(monitors) = gdk::Display::default().map(|d| d.monitors()) else {
-                log::critical!("unable to retreive gdk display!");
+            let Some(display) = gdk::Display::default() else {
+                log::critical!("unable to retrieve gdk display!");
                 return;
             };
 
@@ -78,6 +78,7 @@ mod imp {
             });
 
             // creates docks for monitors.
+            let monitors = display.monitors();
             for monitor in monitors.iter().flatten() {
                 self.create_window(&monitor);
             }
@@ -118,7 +119,7 @@ mod imp {
     impl ObjectSubclass for NeoDockAppImpl {
         const NAME: &'static str = "NeoDockApp";
         type Type = Obj;
-        type ParentType = gtk::Application;
+        type ParentType = adw::Application;
     }
 
     #[glib::derived_properties]
@@ -136,4 +137,5 @@ mod imp {
             self.on_activate();
         }
     }
+    impl AdwApplicationImpl for NeoDockAppImpl {}
 }
