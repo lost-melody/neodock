@@ -43,6 +43,8 @@ mod imp {
     #[properties(wrapper_type = Obj)]
     pub struct NeoDockAppImpl {
         activated: Cell<bool>,
+        user_css_monitor: RefCell<Option<gio::FileMonitor>>,
+
         #[property(get)]
         pub niri: RefCell<niri::Niri>,
     }
@@ -65,6 +67,10 @@ mod imp {
                 log::critical!("unable to retrieve gdk display!");
                 return;
             };
+
+            // loads application styles and user styles.
+            self.load_styles(&display);
+            self.load_user_styles(&display);
 
             let app = self.obj().clone();
             let niri = self.niri.borrow().clone();
@@ -112,6 +118,32 @@ mod imp {
             ));
 
             window.present();
+        }
+
+        fn load_styles(&self, display: &gdk::Display) {
+            let provider = gtk::CssProvider::new();
+            provider.load_from_resource(&gresource::resource_path("css/style.css"));
+            gtk::style_context_add_provider_for_display(display, &provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
+        }
+
+        fn load_user_styles(&self, display: &gdk::Display) {
+            let css_path = constants::CONFIG_DIR.join("style.css");
+            let provider = gtk::CssProvider::new();
+            provider.load_from_path(&css_path);
+            gtk::style_context_add_provider_for_display(display, &provider, gtk::STYLE_PROVIDER_PRIORITY_USER + 1);
+
+            let file = gio::File::for_path(&css_path);
+            match file.monitor_file(gio::FileMonitorFlags::NONE, None::<&gio::Cancellable>) {
+                Ok(monitor) => {
+                    monitor.connect_changed(move |_, _, _, _| {
+                        provider.load_from_path(&css_path);
+                    });
+                    self.user_css_monitor.replace(Some(monitor));
+                }
+                Err(err) => {
+                    log::warning!("unable to monitor user css file: {err}");
+                }
+            };
         }
     }
 

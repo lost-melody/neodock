@@ -1,0 +1,55 @@
+popover.menu > contents {
+  background-color: alpha(var(--view-bg-color), 0.3);
+}
+
+.neodock-window {
+  background-color: transparent;
+}
+
+.neodock-view {
+  background-color: alpha(var(--view-bg-color), 0.3);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+.neodock-view:selected {
+  border-color: var(--border-color);
+  border-radius: 12px;
+}
+
+.neodock-launcher-button {
+  margin: 2px;
+  transition: all 0.3s ease;
+}
+.neodock-launcher-button:not(:active) {
+  animation: jelly-shrink 0.3s ease-in-out forwards;
+}
+.neodock-launcher-button:hover:not(:active) {
+  animation: jelly-pop 0.3s ease-in-out forwards;
+}
+.neodock-launcher-button:hover:active {
+  transform: scale(1);
+}
+
+@keyframes jelly-pop {
+  0% {
+    transform: scale(1);
+  }
+  65% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1.05);
+  }
+}
+@keyframes jelly-shrink {
+  0% {
+    transform: scale(1.05);
+  }
+  65% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+  }
+}

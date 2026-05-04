@@ -2,5 +2,7 @@
 <!-- vim: set sw=2: -->
 <gresources>
   <gresource prefix="/io/github/lost-melody/NeoDock/">
+    <!-- css files -->
+    <file compressed="true">css/style.css</file>
   </gresource>
 </gresources>
