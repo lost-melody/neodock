@@ -4,11 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1.0.100"
+adw = { version = "0.9.1", package = "libadwaita", features = ["v1_9"] }
+anyhow = "1.0.102"
 declarative = "0.7.3"
-futures = "0.3.31"
+futures = "0.3.32"
 gettext-rs = { version = "0.7.7", features = ["gettext-system"] }
-gtk4 = { version = "0.10.3", features = ["v4_20", "gio_v2_80"] }
-gtk4-layer-shell = { version = "0.7.1", features = ["v1_3"] }
-niri-ipc = "25.11.0"
+gtk4 = { version = "0.11.2", features = ["gnome_50"] }
+gtk4-layer-shell = { version = "0.8.0", features = ["v1_3"] }
+niri-ipc = "26.4.0"
 serde_json = "1.0.149"
