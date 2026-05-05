@@ -9,6 +9,7 @@ anyhow = "1.0.102"
 declarative = "0.7.3"
 futures = "0.3.32"
 gettext-rs = { version = "0.7.7", features = ["gettext-system"] }
+gio-unix = { version = "0.22.6", features = ["v2_84"] }
 gtk4 = { version = "0.11.2", features = ["gnome_50"] }
 gtk4-layer-shell = { version = "0.8.0", features = ["v1_3"] }
 niri-ipc = "26.4.0"

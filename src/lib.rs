@@ -1,6 +1,7 @@
 pub mod application;
 pub mod constants;
 pub mod init;
+pub mod models;
 pub mod prelude;
 pub mod services;
 pub mod utils;
