@@ -53,7 +53,7 @@ impl NiriWindow {
         if let Some(timestamp) = timestamp {
             self.imp().focus_timestamp_.borrow_mut().0 = timestamp;
         } else {
-            *self.imp().focus_timestamp_.borrow_mut() = imp::Timestamp::default();
+            self.imp().focus_timestamp_.replace(imp::Timestamp::default());
         }
         self.set_focus_timestamp(false);
     }
