@@ -55,6 +55,9 @@ mod imp {
     #[derive(Default, glib::Properties)]
     #[properties(wrapper_type = Obj)]
     pub struct NeoWindowImpl {
+        /// The connector of the window's output monitor, e.g. `DP-1`.
+        #[property(get, set, nullable)]
+        output: RefCell<Option<String>>,
         #[property(get)]
         view: RefCell<Option<String>>,
     }

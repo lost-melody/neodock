@@ -117,6 +117,7 @@ mod imp {
                 }
             ));
 
+            window.set_output(monitor.connector());
             window.present();
         }
 
