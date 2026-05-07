@@ -30,6 +30,8 @@ impl NeoWindow {
         window.set_layer(Layer::Top);
         window.set_anchor(Edge::Bottom, true);
         window.set_margin(Edge::Bottom, 0);
+        // output connector.
+        window.set_output(monitor.connector().unwrap_or_default());
 
         window
     }
@@ -56,10 +58,10 @@ mod imp {
     #[properties(wrapper_type = Obj)]
     pub struct NeoWindowImpl {
         /// The connector of the window's output monitor, e.g. `DP-1`.
-        #[property(get, set, nullable)]
-        output: RefCell<Option<String>>,
+        #[property(get, set)]
+        output: RefCell<String>,
         #[property(get)]
-        view: RefCell<Option<String>>,
+        view: RefCell<Option<widgets::DockView>>,
     }
 
     impl NeoWindowImpl {
@@ -73,16 +75,16 @@ mod imp {
                 set_height_request: -1
                 set_resizable: false
                 add_css_class: "neodock-window"
-                set_content: Some(&_) @widgets::DockView::new() {}
+                set_content: Some(&_) @widgets::DockView::new() view {}
             });
 
-            self.view.replace(None);
+            self.view.replace(Some(view));
         }
     }
 
     #[glib::object_subclass]
     impl ObjectSubclass for NeoWindowImpl {
-        const NAME: &'static str = "NeoDockNeoWindow";
+        const NAME: &'static str = "NeoDockWindow";
         type Type = Obj;
         type ParentType = adw::Window;
     }
