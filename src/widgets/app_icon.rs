@@ -271,9 +271,8 @@ mod imp {
 
             // windows actions.
             let windows = app_info.sorted_windows().unwrap();
-            if let Some(section) = self.build_menu_for_windows(&action_group, windows.upcast_ref()) {
-                let count = windows.n_items();
-                model.append_section(Some(&format!("{count} windows")), &section);
+            if let Some((label, section)) = self.build_menu_for_windows(&action_group, windows.upcast_ref()) {
+                model.append_section(Some(&label), &section);
             }
 
             // applies the new menu model.
@@ -323,9 +322,15 @@ mod imp {
             &self,
             group: &gio::SimpleActionGroup,
             windows: &gio::ListModel,
-        ) -> Option<gio::Menu> {
+        ) -> Option<(String, gio::Menu)> {
             if windows.n_items() == 0 {
                 return None;
+            }
+
+            if windows.n_items() == 1 {
+                let window = windows.item(0).and_downcast::<niri::NiriWindow>().unwrap();
+                let section = self.build_menu_for_window(group, &window);
+                return Some((window.title().unwrap_or_default(), section));
             }
 
             let section = gio::Menu::new();
@@ -335,7 +340,7 @@ mod imp {
                 let window = windows.item(i).and_downcast::<niri::NiriWindow>().unwrap();
                 let submenu = self.build_menu_for_window(group, &window);
                 let title = window.title().unwrap_or_default();
-                section.append_submenu(Some(&title), &submenu);
+                section.append_submenu(Some(&format!("{}. {title}", i + 1)), &submenu);
             }
 
             // closes all windows of application.
@@ -363,7 +368,7 @@ mod imp {
                 ),
             ));
 
-            Some(section)
+            Some((format!("{} windows", windows.n_items()), section))
         }
 
         /// Builds submenu of a single window.
