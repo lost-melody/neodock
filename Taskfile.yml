@@ -19,6 +19,12 @@ tasks:
       - cargo run
     silent: true
 
+  release:
+    desc: build the release binary
+    cmds:
+      - cargo build --release
+    silent: true
+
   resources:
     desc: build gresources
     cmds:
