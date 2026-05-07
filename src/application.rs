@@ -28,11 +28,13 @@ mod imp {
     use std::cell::{Cell, RefCell};
 
     use adw::subclass::prelude::*;
+    use gio_unix;
     use gtk::prelude::*;
     use gtk::{gdk, gio, glib};
     use gtk4 as gtk;
 
     use crate::constants;
+    use crate::models;
     use crate::services::niri;
     use crate::utils::{gresource, log};
     use crate::widgets;
@@ -45,8 +47,14 @@ mod imp {
         activated: Cell<bool>,
         user_css_monitor: RefCell<Option<gio::FileMonitor>>,
 
+        /// Source applications store, where apps are inserted and removed.
         #[property(get)]
-        pub niri: RefCell<niri::Niri>,
+        apps: RefCell<Option<gio::ListStore>>,
+        /// Sorted applications store, where apps are retrieved.
+        #[property(get)]
+        sorted_apps: RefCell<Option<gtk::SortListModel>>,
+        #[property(get)]
+        niri: RefCell<niri::Niri>,
     }
 
     impl NeoDockAppImpl {
@@ -62,6 +70,19 @@ mod imp {
                 return;
             }
             self.activated.set(true);
+
+            // initializes apps store and sorted store.
+            let apps = gio::ListStore::new::<models::App>();
+            let sorter = gtk::CustomSorter::new(|a, b| {
+                models::app::compare_apps(
+                    a.downcast_ref::<models::App>().unwrap(),
+                    b.downcast_ref::<models::App>().unwrap(),
+                )
+                .into()
+            });
+            let sorted_apps = gtk::SortListModel::new(Some(apps.clone()), Some(sorter));
+            self.apps.replace(Some(apps));
+            self.sorted_apps.replace(Some(sorted_apps));
 
             let Some(display) = gdk::Display::default() else {
                 log::critical!("unable to retrieve gdk display!");
@@ -82,6 +103,7 @@ mod imp {
                     app.quit();
                 })
             });
+            self.connect_niri_signals(&niri);
 
             // creates docks for monitors.
             let monitors = display.monitors();
@@ -117,8 +139,67 @@ mod imp {
                 }
             ));
 
-            window.set_output(monitor.connector());
             window.present();
+        }
+
+        fn connect_niri_signals(&self, niri: &niri::Niri) {
+            let app = self.obj().clone();
+            // adds windows to store on created, and removes it on closed.
+            niri.connect_window_created_notify(glib::clone!(
+                #[weak]
+                app,
+                move |niri| {
+                    let window = niri.window_created();
+                    window.connect_closed_notify(glib::clone!(
+                        #[weak]
+                        app,
+                        move |w| {
+                            app.imp().remove_window_from_apps(w);
+                        }
+                    ));
+                    app.imp().add_window_to_apps(window);
+                }
+            ));
+        }
+
+        /// Adds window to ListStore, grouped by `app_id`.
+        fn add_window_to_apps(&self, window: niri::NiriWindow) {
+            let apps = self.obj().apps().unwrap();
+            let app_id = window.app_id().unwrap_or_default();
+            // finds app in ListStore.
+            if let Some(index) =
+                apps.find_with_equal_func(|o| o.downcast_ref::<models::App>().is_some_and(|a| a.app_id() == app_id))
+            {
+                // adds the window to app info object.
+                let app_info = apps.item(index).and_then(|o| o.downcast::<models::App>().ok()).unwrap();
+                app_info.add_window(window);
+            } else {
+                // creates a new app info object.
+                let app_info = models::App::new();
+                let app_id = window.app_id().unwrap_or_default();
+                let gio_app_info = gio_unix::DesktopAppInfo::new(&format!("{app_id}.desktop"));
+                app_info.set_app_id(app_id);
+                app_info.set_info(gio_app_info);
+                app_info.add_window(window);
+                // and adds it to source store.
+                apps.append(&app_info);
+            }
+        }
+
+        fn remove_window_from_apps(&self, window: &niri::NiriWindow) {
+            let apps = self.obj().apps().unwrap();
+            let app_id = window.app_id().unwrap_or_default();
+            // finds app in ListStore, and removes window from it.
+            if let Some(index) =
+                apps.find_with_equal_func(|o| o.downcast_ref::<models::App>().is_some_and(|a| a.app_id() == app_id))
+            {
+                let app_info = apps.item(index).and_then(|o| o.downcast::<models::App>().ok()).unwrap();
+                let remaining = app_info.remove_window(window.id());
+                // removes app if no windows remaining.
+                if remaining == 0 {
+                    apps.remove(index);
+                }
+            }
         }
 
         fn load_styles(&self, display: &gdk::Display) {
