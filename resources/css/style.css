@@ -12,22 +12,33 @@ popover.menu > contents {
   border-radius: 4px;
   transition: all 0.3s ease;
 }
+.neodock-centered-view {
+  padding: 0.25em;
+}
 .neodock-view:selected {
   border-color: var(--border-color);
   border-radius: 12px;
 }
 
-.neodock-launcher-button {
-  margin: 2px;
+.neodock-flowbox-child-app-icon {
+  background-color: transparent;
+  padding: 0;
+}
+
+.neodock-icon-button {
+  margin: 0.25em;
   transition: all 0.3s ease;
 }
-.neodock-launcher-button:not(:active) {
+.neodock-icon-button:not(:hover) {
+  background-color: transparent;
+}
+.neodock-icon-button:not(:active) {
   animation: jelly-shrink 0.3s ease-in-out forwards;
 }
-.neodock-launcher-button:hover:not(:active) {
+.neodock-icon-button:hover:not(:active) {
   animation: jelly-pop 0.3s ease-in-out forwards;
 }
-.neodock-launcher-button:hover:active {
+.neodock-icon-button:hover:active {
   transform: scale(1);
 }
 
