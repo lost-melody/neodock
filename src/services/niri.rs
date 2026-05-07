@@ -171,14 +171,7 @@ mod imp {
                     }
                     self.obj().notify_windows();
                 }
-                Event::WindowFocusChanged { id } => {
-                    let id = id.unwrap_or_default();
-                    if let Some(win) = self.focused_window.borrow().as_ref() {
-                        win.set_is_focused(false);
-                    }
-                    self.obj()
-                        .set_focused_window(self.windows_.borrow().get(&id).inspect(|w| w.set_is_focused(true)));
-                }
+                Event::WindowFocusChanged { id } => self.apply_window_focus_changed(id),
                 Event::WindowFocusTimestampChanged { id, focus_timestamp } => {
                     if let Some(win) = self.windows_.borrow().get(&id) {
                         win.set_focus_timestamp_(focus_timestamp);
@@ -237,6 +230,15 @@ mod imp {
             }
         }
 
+        fn apply_window_focus_changed(&self, id: Option<u64>) {
+            let id = id.unwrap_or_default();
+            if let Some(win) = self.focused_window.borrow().as_ref() {
+                win.set_is_focused(false);
+            }
+            self.obj()
+                .set_focused_window(self.windows_.borrow().get(&id).inspect(|w| w.set_is_focused(true)));
+        }
+
         /// Handles window created or changed,
         /// and returns whether a new window is created.
         fn handle_window_opened_or_changed(&self, window: ipc::Window) -> bool {
@@ -253,7 +255,7 @@ mod imp {
                 win
             };
             if win.is_focused() {
-                self.obj().set_focused_window(Some(win));
+                self.apply_window_focus_changed(Some(win.id()));
             }
             is_opened
         }
