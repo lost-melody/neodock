@@ -1,3 +1,15 @@
+/* variables in the scope of dock window. */
+.neodock-window {
+  --border-radius: 12px;
+  --peek-radius: 4px;
+  --dock-view-padding: 0.25em;
+  --dock-view-min-width: 24em;
+  --dock-icon-margin: 0.25em;
+  --dock-transition-duration: 0.3s;
+  --dock-animation-duration: var(--dock-transition-duration);
+}
+
+/* popover menu's background. */
 popover.menu > contents {
   background-color: alpha(var(--view-bg-color), 0.3);
 }
@@ -7,42 +19,45 @@ popover.menu > contents {
 }
 
 .neodock-view {
-  background-color: alpha(var(--view-bg-color), 0.3);
-  border: 1px solid transparent;
-  border-radius: 4px;
-  transition: all 0.3s ease;
-}
-.neodock-centered-view {
-  padding: 0.25em;
+  background-color: alpha(var(--view-bg-color), 0.1);
+  border: 1px solid alpha(var(--headerbar-border-color), 0.25);
+  border-radius: var(--peek-radius);
+  transition: all var(--dock-transition-duration) ease;
 }
 .neodock-view:selected {
   border-color: var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--border-radius);
 }
 
+.neodock-centered-view {
+  padding: var(--dock-view-padding);
+  min-width: var(--dock-view-min-width);
+}
+
+/* FlowBox child containing each app icon. */
 .neodock-flowbox-child-app-icon {
   background-color: transparent;
   padding: 0;
 }
 
 .neodock-icon-button {
-  margin: 0.25em;
-  transition: all 0.3s ease;
+  margin: var(--dock-icon-margin);
+  transition: all var(--dock-transition-duration) ease;
 }
 .neodock-icon-button:not(:hover) {
   background-color: transparent;
 }
 .neodock-icon-button:not(:active) {
-  animation: jelly-shrink 0.3s ease-in-out forwards;
+  animation: dock-icon-shrink var(--dock-animation-duration) ease-in-out forwards;
 }
 .neodock-icon-button:hover:not(:active) {
-  animation: jelly-pop 0.3s ease-in-out forwards;
+  animation: dock-icon-pop var(--dock-animation-duration) ease-in-out forwards;
 }
 .neodock-icon-button:hover:active {
   transform: scale(1);
 }
 
-@keyframes jelly-pop {
+@keyframes dock-icon-pop {
   0% {
     transform: scale(1);
   }
@@ -53,7 +68,7 @@ popover.menu > contents {
     transform: scale(1.05);
   }
 }
-@keyframes jelly-shrink {
+@keyframes dock-icon-shrink {
   0% {
     transform: scale(1.05);
   }

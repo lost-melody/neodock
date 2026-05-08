@@ -70,8 +70,6 @@ mod imp {
                 add_css_class: "neodock-flowbox-child-app-icon"
 
                 set_child: Some(&_) @gtk::Box view {
-                    orientation: gtk::Orientation::Vertical
-                    homogeneous: true
                     ~
                     add_css_class: "neodock-app-icon-view"
                     insert_action_group: "menu", Some(&_) @gio::SimpleActionGroup::new() action_group {}

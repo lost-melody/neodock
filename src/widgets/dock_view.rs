@@ -91,10 +91,8 @@ mod imp {
                 append: &_ @gtk::Revealer revealer {
                     reveal_child: false
                     transition_type: gtk::RevealerTransitionType::SlideUp
-                    transition_duration: 300
 
                     child: &_ @gtk::CenterBox view {
-                        width_request: 256
                         ~
                         add_css_class: "neodock-centered-view"
 
@@ -124,6 +122,7 @@ mod imp {
                             }
 
                             append: &_ @gtk::FlowBox flow_box {
+                                hexpand: false
                                 selection_mode: gtk::SelectionMode::None
                                 min_children_per_line: 100
                                 max_children_per_line: 100
@@ -136,7 +135,6 @@ mod imp {
                 append: &_ @gtk::Revealer peek {
                     reveal_child: true
                     transition_type: gtk::RevealerTransitionType::SlideUp
-                    transition_duration: 300
 
                     child: &_ @gtk::Box {
                         height_request: 4
