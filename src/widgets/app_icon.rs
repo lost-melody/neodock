@@ -371,36 +371,28 @@ mod imp {
 
         /// Builds submenu of a single window.
         fn build_menu_for_window(&self, group: &gio::SimpleActionGroup, window: &niri::NiriWindow) -> gio::Menu {
-            use ipc::Action as Act;
-
             let obj = self.obj();
             let submenu = gio::Menu::new();
             let id = window.id();
 
-            for (label, cmd) in [
-                ("Focus", Act::FocusWindow { id }),
-                ("Fullscreen", Act::FullscreenWindow { id: Some(id) }),
-                ("Toggle Floating", Act::ToggleWindowFloating { id: Some(id) }),
-                ("Close", Act::CloseWindow { id: Some(id) }),
+            for (label, cmds) in [
+                ("Focus", window.cmd_focus()),
+                ("Center", window.cmd_center()),
+                ("Fullscreen", window.cmd_toggle_fullscreen()),
+                ("Maximize", window.cmd_toggle_maximize()),
+                ("Toggle Floating", window.cmd_toggle_floating()),
+                ("Close", window.cmd_close()),
             ] {
                 let action = label.to_lowercase().replace(" ", "-");
                 submenu.append(Some(label), Some(&format!("menu.win-{id}-{action}")));
+                let cmds = std::rc::Rc::new(cmds);
                 group.add_action(&Self::new_action(
                     &format!("win-{id}-{action}"),
                     glib::clone!(
                         #[weak]
                         obj,
                         move |_| {
-                            glib::spawn_future_local(glib::clone!(
-                                #[strong]
-                                cmd,
-                                async move {
-                                    let niri = obj.imp().niri.borrow().as_ref().unwrap().clone();
-                                    if let Err(err) = niri.send_action(cmd).await {
-                                        log::warning!("failed to send action: {err}");
-                                    }
-                                }
-                            ));
+                            obj.imp().send_niri_actions(&cmds);
                         }
                     ),
                 ));
@@ -422,6 +414,23 @@ mod imp {
             let action = gio::SimpleAction::new(name, None);
             action.connect_activate(move |a, _| f(a));
             action
+        }
+
+        fn send_niri_actions(&self, cmds: &std::rc::Rc<Vec<ipc::Action>>) {
+            let obj = self.obj();
+            let cmds = cmds.clone();
+            glib::spawn_future_local(glib::clone!(
+                #[weak]
+                obj,
+                async move {
+                    let niri = obj.imp().niri.borrow().as_ref().unwrap().clone();
+                    for cmd in cmds.as_ref() {
+                        if let Err(err) = niri.send_action(cmd.clone()).await {
+                            log::warning!("failed to send action: {err}");
+                        }
+                    }
+                }
+            ));
         }
 
         fn action_group(&self) -> gio::SimpleActionGroup {

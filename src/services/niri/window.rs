@@ -61,6 +61,42 @@ impl NiriWindow {
     pub fn get_focus_timestamp(&self) -> ipc::Timestamp {
         self.imp().focus_timestamp_.borrow().0
     }
+
+    pub fn cmd_focus(&self) -> Vec<ipc::Action> {
+        vec![ipc::Action::FocusWindow { id: self.id() }]
+    }
+
+    pub fn cmd_center(&self) -> Vec<ipc::Action> {
+        vec![
+            ipc::Action::FocusWindow { id: self.id() },
+            ipc::Action::CenterWindow { id: Some(self.id()) },
+        ]
+    }
+
+    pub fn cmd_toggle_fullscreen(&self) -> Vec<ipc::Action> {
+        vec![
+            ipc::Action::FocusWindow { id: self.id() },
+            ipc::Action::FullscreenWindow { id: Some(self.id()) },
+        ]
+    }
+
+    pub fn cmd_toggle_maximize(&self) -> Vec<ipc::Action> {
+        vec![
+            ipc::Action::FocusWindow { id: self.id() },
+            ipc::Action::MaximizeColumn {},
+        ]
+    }
+
+    pub fn cmd_toggle_floating(&self) -> Vec<ipc::Action> {
+        vec![
+            ipc::Action::FocusWindow { id: self.id() },
+            ipc::Action::ToggleWindowFloating { id: Some(self.id()) },
+        ]
+    }
+
+    pub fn cmd_close(&self) -> Vec<ipc::Action> {
+        vec![ipc::Action::CloseWindow { id: Some(self.id()) }]
+    }
 }
 
 mod imp {
