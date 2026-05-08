@@ -1,11 +1,12 @@
 /* variables in the scope of dock window. */
 .neodock-window {
-  --border-radius: 12px;
-  --peek-radius: 4px;
+  --dock-border-color: var(--border-color);
+  --dock-border-radius: 12px;
+  --dock-peek-border-radius: 4px;
   --dock-view-padding: 0.25em;
   --dock-view-min-width: 24em;
   --dock-icon-margin: 0.25em;
-  --dock-transition-duration: 0.3s;
+  --dock-transition-duration: 0.25s;
   --dock-animation-duration: var(--dock-transition-duration);
 }
 
@@ -21,12 +22,12 @@ popover.menu > contents {
 .neodock-view {
   background-color: alpha(var(--view-bg-color), 0.1);
   border: 1px solid alpha(var(--headerbar-border-color), 0.25);
-  border-radius: var(--peek-radius);
+  border-radius: var(--dock-peek-border-radius);
   transition: all var(--dock-transition-duration) ease;
 }
 .neodock-view:selected {
-  border-color: var(--border-color);
-  border-radius: var(--border-radius);
+  border-color: var(--dock-border-color);
+  border-radius: var(--dock-border-radius);
 }
 
 .neodock-centered-view {
