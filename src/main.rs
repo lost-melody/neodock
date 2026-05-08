@@ -13,5 +13,16 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    lib::application::NeoDockApp::default().run()
+    let app = lib::application::NeoDockApp::new();
+
+    // Tries registering application and detects whether it is duplicate.
+    if let Err(err) = app.register(None::<&gtk::gio::Cancellable>) {
+        glib::g_critical!(LOG_DOMAIN, "failed to register: {err}.");
+        return ExitCode::FAILURE;
+    }
+    if app.is_remote() {
+        glib::g_message!(LOG_DOMAIN, "another instance is already running.");
+    }
+
+    app.run()
 }
