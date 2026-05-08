@@ -33,6 +33,7 @@ mod imp {
     use gtk::subclass::prelude::*;
     use gtk::{gdk, gio, glib};
     use gtk4 as gtk;
+    use unicode_width::UnicodeWidthChar;
 
     use crate::models;
     use crate::prelude::*;
@@ -328,7 +329,8 @@ mod imp {
             if windows.n_items() == 1 {
                 let window = windows.item(0).and_downcast::<niri::NiriWindow>().unwrap();
                 let section = self.build_menu_for_window(group, &window);
-                return Some((window.title().unwrap_or_default(), section));
+                let title = Self::truncate_menu_label(window.title().unwrap_or_default());
+                return Some((title, section));
             }
 
             let section = gio::Menu::new();
@@ -337,7 +339,7 @@ mod imp {
             for i in 0..windows.n_items() {
                 let window = windows.item(i).and_downcast::<niri::NiriWindow>().unwrap();
                 let submenu = self.build_menu_for_window(group, &window);
-                let title = window.title().unwrap_or_default();
+                let title = Self::truncate_menu_label(window.title().unwrap_or_default());
                 section.append_submenu(Some(&format!("{}. {title}", i + 1)), &submenu);
             }
 
@@ -431,6 +433,22 @@ mod imp {
                     }
                 }
             ));
+        }
+
+        /// Truncates menu label if it's too long.
+        fn truncate_menu_label(mut label: String) -> String {
+            const MAX_LEN: usize = 32;
+            let (mut bytes, mut width) = (0, 0);
+            for c in label.chars() {
+                width += c.width().unwrap_or_default();
+                if width > MAX_LEN {
+                    label.truncate(bytes);
+                    label.push_str("...");
+                    break;
+                }
+                bytes += c.len_utf8();
+            }
+            label
         }
 
         fn action_group(&self) -> gio::SimpleActionGroup {
