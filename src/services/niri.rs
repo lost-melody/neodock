@@ -133,6 +133,8 @@ mod imp {
         overview_is_open: Cell<bool>,
         #[property(get, set)]
         window_created: RefCell<NiriWindow>,
+        #[property(get, set)]
+        focused_workspace: RefCell<Option<NiriWorkspace>>,
         #[property(get, set, nullable)]
         focused_window: RefCell<Option<NiriWindow>>,
     }
@@ -151,7 +153,25 @@ mod imp {
                 }
                 Event::WorkspaceActivated { id, focused } => {
                     if let Some(workspace) = self.workspaces_.borrow().get(&id) {
-                        workspace.set_is_focused(focused);
+                        for ws in self.workspaces_.borrow().values() {
+                            // active workspace changed on the same output.
+                            if ws.output() == workspace.output() {
+                                if ws.is_active() && ws.id() != id {
+                                    ws.set_is_active(false);
+                                } else if !ws.is_active() && ws.id() == id {
+                                    ws.set_is_active(true);
+                                }
+                            }
+                            // focused workspace changed.
+                            if focused {
+                                if ws.is_focused() && ws.id() != id {
+                                    ws.set_is_focused(false);
+                                } else if !ws.is_focused() && ws.id() == id {
+                                    ws.set_is_focused(true);
+                                    self.obj().set_focused_workspace(ws);
+                                }
+                            }
+                        }
                     }
                 }
                 Event::WorkspaceActiveWindowChanged {
