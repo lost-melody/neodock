@@ -1,6 +1,6 @@
 use std::env;
 
-use gtk::{gdk, gio, glib};
+use gtk::{gdk, gio};
 use gtk4 as gtk;
 
 use crate::constants::{CONFIG_DIR, TEXT_DOMAIN};
@@ -27,8 +27,7 @@ fn init_gettext() -> anyhow::Result<()> {
 }
 
 fn init_gresources() -> anyhow::Result<()> {
-    let gresource_bytes = include_bytes!("../target/resources.gresource");
-    gio::resources_register(&gio::Resource::from_data(&glib::Bytes::from_static(gresource_bytes))?);
+    gio::resources_register_include!("resources.gresource")?;
 
     Ok(())
 }
