@@ -11,23 +11,28 @@ built with [gtk-rs](https://gtk-rs.org).
 
 ## Build
 
-If you have [task](https://taskfile.dev) installed, run:
+Build release binary:
 
 ```sh
-# gresource is required for building.
-task resources
-# builds a release binary at `./target/release/neodock`.
-task release
-```
-
-This is equivalent to running:
-
-```sh
-glib-compile-resources resources.gresource.xml --sourcedir ./ --target ../target/resources.gresource
+# build release binary to `./target/release/`.
 cargo build --release
 ```
 
-> See `Taskfile.yml`.
+Run debug binary:
+
+```sh
+# build debug binary to `./target/debug/` and run it.
+cargo run
+```
+
+Install into `~/.cargo/bin`:
+
+```sh
+# install from local repository.
+cargo install --path .
+# install from GitHub.
+cargo install --git https://github.com/lost-melody/neodock
+```
 
 ## Configuration
 
@@ -59,7 +64,7 @@ typically `~/.config/io.github.lost-melody.NeoDock/style.css`.
 ```css
 /* variables in the scope of dock window. */
 .neodock-window {
-  --dock-border-color: var(--border-color);
+  --dock-border-color: alpha(var(--headerbar-border-color), 0.25);
   --dock-border-radius: 12px;
   --dock-peek-border-radius: 4px;
   --dock-view-padding: 0.25em;
