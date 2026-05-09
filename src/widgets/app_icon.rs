@@ -51,7 +51,6 @@ mod imp {
         icon: RefCell<Option<gtk::Image>>,
         right_click: RefCell<Option<gtk::GestureClick>>,
         menu: RefCell<Option<gtk::PopoverMenu>>,
-        menu_model: RefCell<Option<gio::Menu>>,
 
         niri: RefCell<Option<niri::Niri>>,
 
@@ -86,7 +85,7 @@ mod imp {
 
                     append: &_ @gtk::PopoverMenu menu {
                         has_arrow: false
-                        menu_model: &_ @gio::Menu::new() menu_model {}
+                        menu_model: &_ @gio::Menu::new() {}
                     }
                 }
             });
@@ -99,7 +98,6 @@ mod imp {
             self.icon.replace(Some(icon));
             self.right_click.replace(Some(right_click));
             self.menu.replace(Some(menu));
-            self.menu_model.replace(Some(menu_model));
             self.view.replace(Some(view));
 
             self.bind_application();
@@ -251,8 +249,8 @@ mod imp {
         fn build_menu_model(&self, app_info: &models::App) {
             // rebuilds menu items.
             let menu = self.menu();
+            let model = menu.menu_model().and_downcast::<gio::Menu>().unwrap();
             menu.set_menu_model(None::<&gio::MenuModel>);
-            let model = self.menu_model();
             model.remove_all();
             // clears all actions.
             let action_group = self.action_group();
@@ -467,10 +465,6 @@ mod imp {
 
         fn menu(&self) -> gtk::PopoverMenu {
             self.menu.borrow().as_ref().unwrap().clone()
-        }
-
-        fn menu_model(&self) -> gio::Menu {
-            self.menu_model.borrow().as_ref().unwrap().clone()
         }
     }
 
