@@ -167,8 +167,7 @@ mod imp {
 
         /// Finds the [crate::NeoDockApp] and retrieves the [niri::Niri] object.
         fn bind_application(&self) {
-            self.obj().with_application(|obj, app| {
-                let app = app.downcast::<crate::NeoDockApp>().expect("NeoDockApp required");
+            self.obj().with_neo_app(|obj, app| {
                 obj.apps().unwrap().set_model(app.sorted_apps().as_ref());
                 let niri = app.niri().clone();
                 obj.imp().connect_niri_overview(&niri);
@@ -178,8 +177,7 @@ mod imp {
 
         /// Finds the [crate::NeoWindow] and retrieves the output connector.
         fn bind_root_window(&self) {
-            self.obj().with_root_window(|_, win| {
-                let win = win.downcast::<crate::NeoWindow>().expect("NeoWindow required");
+            self.obj().with_neo_window(|_, win| {
                 win.connect_output_notify(|win| {
                     let output = win.output();
                     log::message!("window output: {output}");

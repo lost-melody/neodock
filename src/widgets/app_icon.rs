@@ -111,15 +111,13 @@ mod imp {
         }
 
         fn bind_application(&self) {
-            self.obj().with_application(|obj, app| {
-                let app = app.downcast::<crate::NeoDockApp>().unwrap();
+            self.obj().with_neo_app(|obj, app| {
                 obj.imp().niri.replace(Some(app.niri()));
             });
         }
 
         fn bind_root_window(&self) {
-            self.obj().with_root_window(|obj, window| {
-                let window = window.downcast::<crate::NeoWindow>().unwrap();
+            self.obj().with_neo_window(|obj, window| {
                 let revealer = window.view().unwrap().revealer().unwrap();
                 obj.imp().menu().connect_visible_notify(glib::clone!(
                     #[weak]
