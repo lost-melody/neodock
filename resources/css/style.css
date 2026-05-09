@@ -1,6 +1,6 @@
 /* variables in the scope of dock window. */
 .neodock-window {
-  --dock-border-color: var(--border-color);
+  --dock-border-color: alpha(var(--headerbar-border-color), 0.25);
   --dock-border-radius: 12px;
   --dock-peek-border-radius: 4px;
   --dock-view-padding: 0.25em;
@@ -21,7 +21,7 @@ popover.menu > contents {
 
 .neodock-view {
   background-color: alpha(var(--view-bg-color), 0.1);
-  border: 1px solid alpha(var(--headerbar-border-color), 0.25);
+  border: 1px solid alpha(var(--dock-border-color), 0.5);
   border-radius: var(--dock-peek-border-radius);
   transition: all var(--dock-transition-duration) ease;
 }
