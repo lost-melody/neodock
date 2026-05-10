@@ -28,7 +28,6 @@ mod imp {
     use std::cell::{Cell, RefCell};
 
     use adw::subclass::prelude::*;
-    use gio_unix;
     use gtk::prelude::*;
     use gtk::{gdk, gio, glib};
     use gtk4 as gtk;
@@ -75,7 +74,8 @@ mod imp {
             self.activated.set(true);
 
             // initializes user config watcher.
-            self.config.replace(Some(config::NeoDockConfig::new()));
+            let config = config::NeoDockConfig::new();
+            self.config.replace(Some(config));
 
             // initializes apps store and sorted store.
             let apps = gio::ListStore::new::<models::App>();
@@ -101,6 +101,8 @@ mod imp {
 
             let app = self.obj().clone();
             let niri = self.niri.borrow().clone();
+
+            self.connect_pinned_apps();
 
             niri.spawn_event_stream({
                 let app = app.clone();
@@ -148,6 +150,25 @@ mod imp {
             window.present();
         }
 
+        fn connect_pinned_apps(&self) {
+            let obj = self.obj();
+            let config = obj.config().unwrap();
+            let apps = obj.apps().unwrap();
+            // adds pinned apps into store.
+            for app_id in config.pinned_apps() {
+                let app_info = models::App::new_for_id(app_id);
+                app_info.set_is_pinned(true);
+                apps.append(&app_info);
+            }
+            config.connect_pinned_apps_notify(glib::clone!(
+                #[weak]
+                obj,
+                move |config| {
+                    obj.imp().update_pinned_apps(config);
+                }
+            ));
+        }
+
         fn connect_niri_signals(&self, niri: &niri::Niri) {
             let app = self.obj().clone();
             // adds windows to store on created, and removes it on closed.
@@ -168,27 +189,91 @@ mod imp {
             ));
         }
 
+        fn update_pinned_apps(&self, config: &config::NeoDockConfig) {
+            let obj = self.obj();
+            let pinned = config.pinned_apps();
+            let apps = obj.apps().unwrap();
+            let mut to_remove = Vec::new();
+            let mut already_pinned = Vec::new();
+            // unpins apps that are not in the `pinned` list.
+            for (index, item) in apps.into_iter().enumerate() {
+                let Some(app_info) = item.ok().and_downcast::<models::App>() else {
+                    continue;
+                };
+                let app_id = app_info.app_id();
+                // unpinned apps.
+                if app_info.is_pinned() {
+                    if pinned.contains(&app_id) {
+                        // collects already pinned apps.
+                        already_pinned.push(app_info.app_id());
+                    } else {
+                        app_info.set_is_pinned(false);
+                        // should be removed if no windows.
+                        if app_info.windows().unwrap().n_items() == 0 {
+                            to_remove.push(index as u32);
+                        }
+                    }
+                }
+            }
+            // removes apps that are unpinned and have no windows (in reversed order).
+            for index in to_remove.iter().rev() {
+                apps.remove(*index);
+            }
+            // creates app info object for newly pinned apps.
+            for app_id in pinned {
+                if already_pinned.contains(&app_id) {
+                    continue;
+                }
+                if let Some((_, app_info)) = self.find_app_info(&app_id) {
+                    app_info.set_is_pinned(true);
+                } else {
+                    let app_info = models::App::new_for_id(app_id);
+                    app_info.set_is_pinned(true);
+                    self.add_app_to_store(&app_info);
+                }
+            }
+        }
+
+        /// Appends `app_info` into `apps`, and watches its `is_pinned` changes.
+        fn add_app_to_store(&self, app_info: &models::App) {
+            let apps = self.obj().apps().unwrap();
+            apps.append(app_info);
+            app_info.connect_is_pinned_notify(glib::clone!(
+                #[weak]
+                apps,
+                move |app| {
+                    if let Some(index) = apps.find(app) {
+                        apps.items_changed(index, 1, 1);
+                    }
+                }
+            ));
+        }
+
+        /// Finds app info by `app_id` and returns it with index.
+        fn find_app_info(&self, app_id: &String) -> Option<(u32, models::App)> {
+            let apps = self.obj().apps().unwrap();
+            if let Some(index) =
+                apps.find_with_equal_func(|o| o.downcast_ref::<models::App>().is_some_and(|a| &a.app_id() == app_id))
+                && let Some(app_info) = apps.item(index).and_downcast::<models::App>()
+            {
+                return Some((index, app_info));
+            }
+            None
+        }
+
         /// Adds window to ListStore, grouped by `app_id`.
         fn add_window_to_apps(&self, window: niri::NiriWindow) {
-            let apps = self.obj().apps().unwrap();
             let app_id = window.app_id().unwrap_or_default();
             // finds app in ListStore.
-            if let Some(index) =
-                apps.find_with_equal_func(|o| o.downcast_ref::<models::App>().is_some_and(|a| a.app_id() == app_id))
-            {
+            if let Some((_, app_info)) = self.find_app_info(&app_id) {
                 // adds the window to app info object.
-                let app_info = apps.item(index).and_then(|o| o.downcast::<models::App>().ok()).unwrap();
                 app_info.add_window(window);
             } else {
                 // creates a new app info object.
-                let app_info = models::App::new();
-                let app_id = window.app_id().unwrap_or_default();
-                let gio_app_info = gio_unix::DesktopAppInfo::new(&format!("{app_id}.desktop"));
-                app_info.set_app_id(app_id);
-                app_info.set_info(gio_app_info);
+                let app_info = models::App::new_for_id(window.app_id().unwrap_or_default());
                 app_info.add_window(window);
                 // and adds it to source store.
-                apps.append(&app_info);
+                self.add_app_to_store(&app_info);
             }
         }
 
@@ -196,13 +281,10 @@ mod imp {
             let apps = self.obj().apps().unwrap();
             let app_id = window.app_id().unwrap_or_default();
             // finds app in ListStore, and removes window from it.
-            if let Some(index) =
-                apps.find_with_equal_func(|o| o.downcast_ref::<models::App>().is_some_and(|a| a.app_id() == app_id))
-            {
-                let app_info = apps.item(index).and_then(|o| o.downcast::<models::App>().ok()).unwrap();
+            if let Some((index, app_info)) = self.find_app_info(&app_id) {
                 let remaining = app_info.remove_window(window.id());
-                // removes app if no windows remaining.
-                if remaining == 0 {
+                // removes app if not pinned and no windows remaining.
+                if remaining == 0 && !app_info.is_pinned() {
                     apps.remove(index);
                 }
             }

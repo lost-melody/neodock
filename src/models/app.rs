@@ -23,6 +23,15 @@ impl App {
         Self::default()
     }
 
+    /// Creates an [App] info for `app_id`.
+    pub fn new_for_id(app_id: String) -> Self {
+        let app = Self::new();
+        app.set_app_id(app_id.clone());
+        let gio_app_info = gio_unix::DesktopAppInfo::new(&format!("{app_id}.desktop"));
+        app.set_info(gio_app_info);
+        app
+    }
+
     pub fn destroy(&self) {
         self.imp().destroy();
     }
@@ -66,12 +75,15 @@ impl App {
     }
 }
 
-/// Compares two [App]s by `app_id`.
+/// Compares two [App]s by reversed `is_pinned` and then `app_id`.
 pub fn compare_apps(a: &App, b: &App) -> Ordering {
-    a.app_id().cmp(&b.app_id())
+    a.is_pinned()
+        .cmp(&b.is_pinned())
+        .reverse()
+        .then(a.app_id().cmp(&b.app_id()))
 }
 
-/// Compares two [niri::NiriWindow]s by `app_id` and then `id`.
+/// Compares two [niri::NiriWindow]s by `app_id`, `pos` and then `id`.
 pub fn compare_windows(a: &niri::NiriWindow, b: &niri::NiriWindow) -> Ordering {
     a.app_id()
         .cmp(&b.app_id())
@@ -79,17 +91,26 @@ pub fn compare_windows(a: &niri::NiriWindow, b: &niri::NiriWindow) -> Ordering {
         .then(a.id().cmp(&b.id()))
 }
 
-/// Compares two [niri::NiriWindow]s by their `pos_in_scrolling_layout`s.
+/// Compares two [niri::NiriWindow]s by their `pos_in_scrolling_layout`s and `tile_pos_in_workspace_view`.
 pub fn compare_windows_pos(a: &niri::NiriWindow, b: &niri::NiriWindow) -> Ordering {
-    let (a, b) = (
-        a.get_layout().pos_in_scrolling_layout.unwrap_or_default(),
-        b.get_layout().pos_in_scrolling_layout.unwrap_or_default(),
-    );
-    a.cmp(&b)
+    {
+        let (pa, pb) = (
+            a.get_layout().pos_in_scrolling_layout.unwrap_or_default(),
+            b.get_layout().pos_in_scrolling_layout.unwrap_or_default(),
+        );
+        pa.cmp(&pb)
+    }
+    .then({
+        let (pa, pb) = (
+            a.get_layout().tile_pos_in_workspace_view.unwrap_or_default(),
+            b.get_layout().tile_pos_in_workspace_view.unwrap_or_default(),
+        );
+        pa.partial_cmp(&pb).unwrap_or(Ordering::Equal)
+    })
 }
 
 mod imp {
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
 
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
@@ -112,6 +133,9 @@ mod imp {
         /// The application id of windows, and the filename of `.desktop` entries.
         #[property(get, set)]
         app_id: RefCell<String>,
+        /// Whether this application is pinned to dock.
+        #[property(get, set)]
+        is_pinned: Cell<bool>,
         /// Corresponding [gio_unix::DesktopAppInfo] object, if present.
         #[property(get, set, nullable)]
         info: RefCell<Option<gio_unix::DesktopAppInfo>>,
