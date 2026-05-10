@@ -33,6 +33,7 @@ mod imp {
     use gtk::{gdk, gio, glib};
     use gtk4 as gtk;
 
+    use crate::config;
     use crate::constants;
     use crate::models;
     use crate::services::niri;
@@ -47,6 +48,8 @@ mod imp {
         activated: Cell<bool>,
         user_css_monitor: RefCell<Option<gio::FileMonitor>>,
 
+        #[property(get)]
+        config: RefCell<Option<config::NeoDockConfig>>,
         /// Source applications store, where apps are inserted and removed.
         #[property(get)]
         apps: RefCell<Option<gio::ListStore>>,
@@ -70,6 +73,9 @@ mod imp {
                 return;
             }
             self.activated.set(true);
+
+            // initializes user config watcher.
+            self.config.replace(Some(config::NeoDockConfig::new()));
 
             // initializes apps store and sorted store.
             let apps = gio::ListStore::new::<models::App>();
@@ -215,9 +221,13 @@ mod imp {
             gtk::style_context_add_provider_for_display(display, &provider, gtk::STYLE_PROVIDER_PRIORITY_USER + 1);
 
             let file = gio::File::for_path(&css_path);
-            match file.monitor_file(gio::FileMonitorFlags::NONE, None::<&gio::Cancellable>) {
+            match file.monitor_file(gio::FileMonitorFlags::WATCH_MOVES, None::<&gio::Cancellable>) {
                 Ok(monitor) => {
-                    monitor.connect_changed(move |_, _, _, _| {
+                    monitor.connect_changed(move |_, _, _, event| {
+                        if event != gio::FileMonitorEvent::ChangesDoneHint {
+                            return;
+                        }
+                        log::message!("user styles updated");
                         provider.load_from_path(&css_path);
                     });
                     self.user_css_monitor.replace(Some(monitor));

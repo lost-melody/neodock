@@ -3,7 +3,7 @@ use std::env;
 use gtk::{gdk, gio};
 use gtk4 as gtk;
 
-use crate::constants::{CONFIG_DIR, TEXT_DOMAIN};
+use crate::constants::{CONFIG_DIR, CONFIG_FILE, STYLE_FILE, TEXT_DOMAIN};
 use crate::utils::gresource::resource_path;
 
 pub fn init() -> anyhow::Result<()> {
@@ -42,7 +42,7 @@ fn init_icon_theme() -> anyhow::Result<()> {
 fn init_config_dir() -> anyhow::Result<()> {
     std::fs::create_dir_all(&*CONFIG_DIR)?;
 
-    for filename in ["config.toml", "style.css"] {
+    for filename in [CONFIG_FILE, STYLE_FILE] {
         let path = CONFIG_DIR.join(filename);
         if !path.exists() {
             std::fs::File::create(path)?;

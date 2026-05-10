@@ -1,0 +1,130 @@
+use gtk::glib;
+use gtk::subclass::prelude::*;
+use gtk4 as gtk;
+
+glib::wrapper! {
+    pub struct NeoDockConfig(ObjectSubclass<imp::NeoDockConfigImpl>);
+}
+
+impl Default for NeoDockConfig {
+    fn default() -> Self {
+        glib::Object::builder().build()
+    }
+}
+
+impl NeoDockConfig {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn destroy(&self) {
+        self.imp().destroy();
+    }
+}
+
+mod imp {
+    use std::cell::RefCell;
+    use std::fs;
+
+    use gtk::prelude::*;
+    use gtk::subclass::prelude::*;
+    use gtk::{gio, glib};
+    use gtk4 as gtk;
+    use serde::Deserialize;
+
+    use crate::constants::{CONFIG_DIR, CONFIG_FILE};
+    use crate::utils::log;
+
+    type Obj = super::NeoDockConfig;
+
+    #[derive(Deserialize)]
+    struct Config {
+        #[serde(default)]
+        pinned_apps: Vec<String>,
+    }
+
+    #[derive(Default, glib::Properties)]
+    #[properties(wrapper_type = Obj)]
+    pub struct NeoDockConfigImpl {
+        monitor: RefCell<Option<gio::FileMonitor>>,
+
+        /// Pinned applications.
+        #[property(get)]
+        pinned_apps: RefCell<Vec<String>>,
+    }
+
+    impl NeoDockConfigImpl {
+        pub(super) fn destroy(&self) {}
+
+        fn on_constructed(&self) {
+            self.reload();
+            self.monitor_config();
+        }
+
+        /// Monitors user config file changes.
+        fn monitor_config(&self) {
+            let file = gio::File::for_path(CONFIG_DIR.join(CONFIG_FILE));
+            let monitor = match file.monitor_file(gio::FileMonitorFlags::WATCH_MOVES, None::<&gio::Cancellable>) {
+                Ok(file) => file,
+                Err(err) => {
+                    log::warning!("unabled to monitor user config file: {err}");
+                    return;
+                }
+            };
+            // reloads config on changed.
+            let obj = self.obj();
+            monitor.connect_changed(glib::clone!(
+                #[weak]
+                obj,
+                move |_, _, _, event| {
+                    if event != gio::FileMonitorEvent::ChangesDoneHint {
+                        return;
+                    }
+                    log::message!("user config updated");
+                    obj.imp().reload();
+                }
+            ));
+            // holds a reference so that it does not get dropped.
+            self.monitor.replace(Some(monitor));
+        }
+
+        /// Reloads configurations from file.
+        fn reload(&self) {
+            let data = match fs::read(CONFIG_DIR.join(CONFIG_FILE)) {
+                Ok(data) => data,
+                Err(err) => {
+                    log::warning!("failed to read config file: {err}");
+                    return;
+                }
+            };
+            let mut config = match toml::from_slice::<Config>(&data) {
+                Ok(config) => config,
+                Err(err) => {
+                    log::warning!("failed to parse config data: {err}");
+                    return;
+                }
+            };
+
+            config.pinned_apps.sort();
+            if *self.pinned_apps.borrow() != config.pinned_apps {
+                self.pinned_apps.replace(config.pinned_apps);
+                self.obj().notify_pinned_apps();
+            }
+        }
+    }
+
+    #[glib::object_subclass]
+    impl ObjectSubclass for NeoDockConfigImpl {
+        const NAME: &'static str = "NeoDockConfig";
+        type Type = Obj;
+        type ParentType = glib::Object;
+    }
+
+    #[glib::derived_properties]
+    impl ObjectImpl for NeoDockConfigImpl {
+        fn constructed(&self) {
+            self.parent_constructed();
+            self.on_constructed();
+        }
+    }
+}
