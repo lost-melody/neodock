@@ -36,6 +36,23 @@ cargo install --git https://github.com/lost-melody/neodock
 
 ## Configuration
 
+_NeoDock_ is configured with a config file instead of _GSettings_,
+typically `~/.config/io.github.lost-melody.NeoDock/config.toml`.
+I believe this way it is easily managed across devices.
+
+Example:
+
+```toml
+# list of application ids pinned to dock, where app_id is generally filenames
+# in `/usr/share/applications/` without a `.desktop` extension.
+pinned_apps = [
+    "firefox",
+    "kitty",
+    "org.gnome.Nautilus",
+    "steam",
+]
+```
+
 Example _Niri_ layer rule:
 
 ```kdl
@@ -78,3 +95,5 @@ popover.menu > contents {
   background-color: alpha(var(--view-bg-color), 0.3);
 }
 ```
+
+> See `/path/to/repo/resources/css/style.css`.
