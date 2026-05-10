@@ -51,6 +51,7 @@ mod imp {
         icon: RefCell<Option<gtk::Image>>,
         right_click: RefCell<Option<gtk::GestureClick>>,
         menu: RefCell<Option<gtk::PopoverMenu>>,
+        pin_icon: RefCell<Option<gtk::Image>>,
 
         niri: RefCell<Option<niri::Niri>>,
 
@@ -69,23 +70,38 @@ mod imp {
             block!(obj.clone() {
                 add_css_class: "neodock-flowbox-child-app-icon"
 
-                set_child: Some(&_) @gtk::Box view {
-                    ~
-                    add_css_class: "neodock-app-icon-view"
-                    insert_action_group: "menu", Some(&_) @gio::SimpleActionGroup::new() action_group {}
-
-                    append: &_ @gtk::Button button {
-                        child: &_ @gtk::Image icon {
-                            icon_size: gtk::IconSize::Large
-                        }
+                set_child: Some(&_) @gtk::Overlay {
+                    child: &_ @gtk::Box view {
                         ~
-                        add_css_class: "neodock-icon-button"
-                        add_css_class: "neodock-icon-button-app"
-                    }
+                        add_css_class: "neodock-app-icon-view"
+                        insert_action_group: "menu", Some(&_) @gio::SimpleActionGroup::new() action_group {}
 
-                    append: &_ @gtk::PopoverMenu menu {
-                        has_arrow: false
-                        menu_model: &_ @gio::Menu::new() {}
+                        append: &_ @gtk::Button button {
+                            child: &_ @gtk::Image icon {
+                                icon_size: gtk::IconSize::Large
+                            }
+                            ~
+                            add_css_class: "neodock-icon-button"
+                            add_css_class: "neodock-icon-button-app"
+                        }
+
+                        append: &_ @gtk::PopoverMenu menu {
+                            has_arrow: false
+                            menu_model: &_ @gio::Menu::new() {}
+                        }
+                    }
+                    ~
+
+                    add_overlay: &_ @gtk::Image pin_icon {
+                        visible: false
+                        halign: gtk::Align::End
+                        valign: gtk::Align::Start
+                        margin_end: 4
+                        margin_top: 4
+                        pixel_size: 8
+                        icon_name: "pager-checked-symbolic"
+                        ~
+                        add_css_class: "neodock-icon-button-pin-icon"
                     }
                 }
             });
@@ -99,6 +115,7 @@ mod imp {
             self.right_click.replace(Some(right_click));
             self.menu.replace(Some(menu));
             self.view.replace(Some(view));
+            self.pin_icon.replace(Some(pin_icon));
 
             self.bind_application();
             self.bind_root_window();
@@ -178,6 +195,14 @@ mod imp {
             }
 
             let obj = self.obj().clone();
+            app_info.connect_is_pinned_notify(glib::clone!(
+                #[weak]
+                obj,
+                move |app_info| {
+                    obj.imp().on_pinned_changed(app_info);
+                }
+            ));
+            self.on_pinned_changed(&app_info);
             app_info.connect_windows_notify(glib::clone!(
                 #[weak]
                 obj,
@@ -190,11 +215,35 @@ mod imp {
             self.build_menu_model(&app_info);
         }
 
+        fn on_pinned_changed(&self, app_info: &models::App) {
+            let is_pinned = app_info.is_pinned();
+            self.pin_icon().set_visible(is_pinned);
+            if is_pinned {
+                self.button().add_css_class("neodock-icon-button-pinned");
+            } else {
+                self.button().remove_css_class("neodock-icon-button-pinned");
+            }
+        }
+
         fn on_windows_changed(&self, app_info: &models::App) {
             let windows = app_info.windows().unwrap();
             if let Some(info) = app_info.info() {
                 let name = info.name();
-                if windows.n_items() == 1 {
+                let button = self.button();
+                let pin_icon = self.pin_icon();
+                let windows_count = windows.n_items();
+
+                // no windows present.
+                if windows_count == 0 {
+                    button.unset_state_flags(gtk::StateFlags::SELECTED);
+                    pin_icon.unset_state_flags(gtk::StateFlags::SELECTED);
+                    button.set_tooltip_text(Some(&format!("{name} (pinned)")));
+                    return;
+                }
+
+                button.set_state_flags(gtk::StateFlags::SELECTED, false);
+                pin_icon.set_state_flags(gtk::StateFlags::SELECTED, false);
+                if windows_count == 1 {
                     let window = windows.item(0).and_downcast::<niri::NiriWindow>().unwrap();
                     let title = window.title().unwrap_or_default();
                     self.button().set_tooltip_text(Some(&format!("{name} - {title}")));
@@ -206,11 +255,19 @@ mod imp {
             }
         }
 
+        /// Launches application if no windows present, or cycles focus among windows.
         fn on_button_clicked(&self, _: &gtk::Button) {
             let Some(app_info) = self.obj().app_info() else {
                 return;
             };
             let windows = app_info.sorted_windows().unwrap();
+            if windows.n_items() == 0 {
+                if let Some(info) = app_info.info() {
+                    _ = info.launch(&[], None::<&gio::AppLaunchContext>);
+                }
+                return;
+            }
+
             let mut window_id = 0;
             let mut focus_ts = ipc::Timestamp { secs: 0, nanos: 0 };
             for i in 0..windows.n_items() {
@@ -465,6 +522,10 @@ mod imp {
 
         fn menu(&self) -> gtk::PopoverMenu {
             self.menu.borrow().as_ref().unwrap().clone()
+        }
+
+        fn pin_icon(&self) -> gtk::Image {
+            self.pin_icon.borrow().as_ref().unwrap().clone()
         }
     }
 

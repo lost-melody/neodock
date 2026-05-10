@@ -57,6 +57,17 @@ popover.menu > contents {
 .neodock-icon-button:hover:active {
   transform: scale(1);
 }
+/* app icon with no windows. */
+.neodock-icon-button-app:not(:selected) > image {
+  -gtk-icon-filter: grayscale(0.5);
+}
+
+.neodock-icon-button-pin-icon {
+  color: var(--accent-bg-color);
+}
+.neodock-icon-button-pin-icon:not(:selected) {
+  -gtk-icon-filter: grayscale(0.5);
+}
 
 @keyframes dock-icon-pop {
   0% {
