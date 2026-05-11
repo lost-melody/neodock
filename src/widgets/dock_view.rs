@@ -43,6 +43,7 @@ mod imp {
     use gtk::{gio, glib};
     use gtk4 as gtk;
 
+    use crate::config;
     use crate::models;
     use crate::prelude::*;
     use crate::services::niri;
@@ -55,8 +56,10 @@ mod imp {
     #[properties(wrapper_type = Obj)]
     pub struct DockViewImpl {
         timer: RefCell<Option<glib::SourceId>>,
+        config: RefCell<Option<config::NeoDockConfig>>,
         niri: RefCell<Option<niri::Niri>>,
         peek: RefCell<Option<gtk::Revealer>>,
+        launcher_button: RefCell<Option<gtk::Button>>,
 
         /// The connector of the window's output monitor, e.g. `DP-1`.
         #[property(get, set)]
@@ -101,7 +104,7 @@ mod imp {
                             homogeneous: false
                             ~
 
-                            append: &_ @gtk::Button {
+                            append: &_ @gtk::Button launcher_button {
                                 tooltip_text: "App Launcher"
 
                                 child: &_ @gtk::Image {
@@ -112,13 +115,6 @@ mod imp {
 
                                 add_css_class: "neodock-icon-button"
                                 add_css_class: "neodock-icon-button-launcher"
-                                connect_clicked: |_| {
-                                    if let Err(err) = std::process::Command::new("qs").
-                                        args(["-c", "noctalia-shell", "ipc", "call", "launcher", "toggle"]).
-                                        spawn() {
-                                        log::warning!("failed to spawn launcher: {err}");
-                                    }
-                                }
                             }
 
                             append: &_ @gtk::FlowBox flow_box {
@@ -150,6 +146,7 @@ mod imp {
             self.motion.replace(Some(motion));
             self.revealer.replace(Some(revealer));
             self.peek.replace(Some(peek));
+            self.launcher_button.replace(Some(launcher_button));
             self.view.replace(Some(view));
 
             let model = obj.apps().unwrap();
@@ -163,12 +160,15 @@ mod imp {
             self.bind_application();
             self.bind_root_window();
             self.connect_state_flags();
+            self.connect_launcher_button();
         }
 
         /// Finds the [crate::NeoDockApp] and retrieves the [niri::Niri] object.
         fn bind_application(&self) {
             self.obj().with_neo_app(|obj, app| {
                 obj.apps().unwrap().set_model(app.sorted_apps().as_ref());
+                let config = app.config().unwrap();
+                obj.imp().config.replace(Some(config));
                 let niri = app.niri().clone();
                 obj.imp().connect_niri_overview(&niri);
                 obj.imp().niri.replace(Some(niri));
@@ -191,6 +191,26 @@ mod imp {
                 obj.imp().reveal_or_hide_view();
             });
             self.reveal_or_hide_view();
+        }
+
+        fn connect_launcher_button(&self) {
+            let button = self.launcher_button.borrow().clone().unwrap();
+            let obj = self.obj();
+            button.connect_clicked(glib::clone!(
+                #[weak]
+                obj,
+                move |_| {
+                    let config = obj.imp().config.borrow().clone().unwrap();
+                    let cmd = config.launcher_command();
+                    if cmd.is_empty() {
+                        log::warning!("configured launcher command is empty");
+                        return;
+                    }
+                    if let Err(err) = std::process::Command::new(&cmd[0]).args(&cmd[1..]).spawn() {
+                        log::warning!("failed to spawn launcher: {err}");
+                    }
+                }
+            ));
         }
 
         /// Detects niri overview opened or closed.

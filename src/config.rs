@@ -39,8 +39,19 @@ mod imp {
 
     #[derive(Deserialize)]
     struct Config {
+        #[serde(default = "Config::default_launcher_command")]
+        launcher_command: Vec<String>,
         #[serde(default)]
         pinned_apps: Vec<String>,
+    }
+
+    impl Config {
+        fn default_launcher_command() -> Vec<String> {
+            ["qs", "-c", "noctalia-shell", "ipc", "call", "launcher", "toggle"]
+                .iter()
+                .map(|&s| s.into())
+                .collect()
+        }
     }
 
     #[derive(Default, glib::Properties)]
@@ -48,6 +59,9 @@ mod imp {
     pub struct NeoDockConfigImpl {
         monitor: RefCell<Option<gio::FileMonitor>>,
 
+        /// Command to run on launcher button clicked.
+        #[property(get)]
+        launcher_command: RefCell<Vec<String>>,
         /// Pinned applications.
         #[property(get)]
         pinned_apps: RefCell<Vec<String>>,
@@ -104,6 +118,11 @@ mod imp {
                     return;
                 }
             };
+
+            if *self.launcher_command.borrow() != config.launcher_command {
+                self.launcher_command.replace(config.launcher_command);
+                self.obj().notify_launcher_command();
+            }
 
             config.pinned_apps.sort();
             if *self.pinned_apps.borrow() != config.pinned_apps {

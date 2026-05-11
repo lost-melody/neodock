@@ -43,6 +43,10 @@ I believe this way it is easily managed across devices.
 Example:
 
 ```toml
+# command to run on launcher button clicked.
+launcher_command = [
+    "qs", "-c", "noctalia-shell", "ipc", "call", "launcher", "toggle",
+]
 # list of application ids pinned to dock, where app_id is generally filenames
 # in `/usr/share/applications/` without a `.desktop` extension.
 pinned_apps = [
