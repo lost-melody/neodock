@@ -38,7 +38,7 @@ cargo install --git https://github.com/lost-melody/neodock
 
 _NeoDock_ is configured with a config file instead of _GSettings_,
 typically `~/.config/io.github.lost-melody.NeoDock/config.toml`.
-I believe this way it is easily managed across devices.
+I believe that by this way the configuration can be easily managed across devices.
 
 Example:
 
