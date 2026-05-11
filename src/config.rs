@@ -1,3 +1,6 @@
+use std::cell::Ref;
+use std::collections::HashMap;
+
 use gtk::glib;
 use gtk::subclass::prelude::*;
 use gtk4 as gtk;
@@ -20,10 +23,19 @@ impl NeoDockConfig {
     pub fn destroy(&self) {
         self.imp().destroy();
     }
+
+    pub fn get_app_id_substitution<'c>(&'c self) -> Ref<'c, HashMap<String, String>> {
+        self.imp().app_id_substitution_.borrow()
+    }
+
+    pub fn get_substituted(&self, app_id: String) -> String {
+        self.get_app_id_substitution().get(&app_id).cloned().unwrap_or(app_id)
+    }
 }
 
 mod imp {
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
+    use std::collections::HashMap;
     use std::fs;
 
     use gtk::prelude::*;
@@ -43,6 +55,8 @@ mod imp {
         launcher_command: Vec<String>,
         #[serde(default)]
         pinned_apps: Vec<String>,
+        #[serde(default)]
+        app_id_substitution: HashMap<String, String>,
     }
 
     impl Config {
@@ -65,6 +79,11 @@ mod imp {
         /// Pinned applications.
         #[property(get)]
         pinned_apps: RefCell<Vec<String>>,
+        /// Placeholder for `app_id_substitution` notifications.
+        #[property(get)]
+        app_id_substitution: Cell<bool>,
+        /// `app_id` substitution dictionary.
+        pub(super) app_id_substitution_: RefCell<HashMap<String, String>>,
     }
 
     impl NeoDockConfigImpl {
@@ -81,7 +100,7 @@ mod imp {
             let monitor = match file.monitor_file(gio::FileMonitorFlags::WATCH_MOVES, None::<&gio::Cancellable>) {
                 Ok(file) => file,
                 Err(err) => {
-                    log::warning!("unabled to monitor user config file: {err}");
+                    log::warning!("unable to monitor user config file: {err}");
                     return;
                 }
             };
@@ -128,6 +147,11 @@ mod imp {
             if *self.pinned_apps.borrow() != config.pinned_apps {
                 self.pinned_apps.replace(config.pinned_apps);
                 self.obj().notify_pinned_apps();
+            }
+
+            if *self.app_id_substitution_.borrow() != config.app_id_substitution {
+                self.app_id_substitution_.replace(config.app_id_substitution);
+                self.obj().notify_app_id_substitution();
             }
         }
     }

@@ -227,31 +227,39 @@ mod imp {
 
         fn on_windows_changed(&self, app_info: &models::App) {
             let windows = app_info.windows().unwrap();
-            if let Some(info) = app_info.info() {
-                let name = info.name();
-                let button = self.button();
-                let pin_icon = self.pin_icon();
-                let windows_count = windows.n_items();
+            let app_id = app_info.app_id();
+            let name = app_info.info().map(|i| i.name()).unwrap_or("Unknown".into());
+            let button = self.button();
+            let pin_icon = self.pin_icon();
+            let windows_count = windows.n_items();
 
-                // no windows present.
-                if windows_count == 0 {
-                    button.unset_state_flags(gtk::StateFlags::SELECTED);
-                    pin_icon.unset_state_flags(gtk::StateFlags::SELECTED);
-                    button.set_tooltip_text(Some(&format!("{name} (pinned)")));
-                    return;
-                }
-
-                button.set_state_flags(gtk::StateFlags::SELECTED, false);
-                pin_icon.set_state_flags(gtk::StateFlags::SELECTED, false);
-                if windows_count == 1 {
-                    let window = windows.item(0).and_downcast::<niri::NiriWindow>().unwrap();
-                    let title = window.title().unwrap_or_default();
-                    self.button().set_tooltip_text(Some(&format!("{name} - {title}")));
+            let app_id_mark = {
+                if app_id.is_empty() {
+                    "".into()
                 } else {
-                    let count = windows.n_items();
-                    self.button()
-                        .set_tooltip_text(Some(&format!("{name} ({count} windows)")))
+                    format!("\n#{app_id}")
                 }
+            };
+
+            // no windows present.
+            if windows_count == 0 {
+                button.unset_state_flags(gtk::StateFlags::SELECTED);
+                pin_icon.unset_state_flags(gtk::StateFlags::SELECTED);
+                button.set_tooltip_text(Some(&format!("{name} (pinned){app_id_mark}")));
+                return;
+            }
+
+            button.set_state_flags(gtk::StateFlags::SELECTED, false);
+            pin_icon.set_state_flags(gtk::StateFlags::SELECTED, false);
+            if windows_count == 1 {
+                let window = windows.item(0).and_downcast::<niri::NiriWindow>().unwrap();
+                let title = window.title().unwrap_or_default();
+                self.button()
+                    .set_tooltip_text(Some(&format!("{name} - {title}{app_id_mark}")));
+            } else {
+                let count = windows.n_items();
+                self.button()
+                    .set_tooltip_text(Some(&format!("{name} ({count} windows){app_id_mark}")))
             }
         }
 

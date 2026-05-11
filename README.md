@@ -55,6 +55,10 @@ pinned_apps = [
     "org.gnome.Nautilus",
     "steam",
 ]
+# application id substitution dictionary.
+[app_id_substitution]
+Chromium = "chromium"
+QQ = "com.qq.QQ"
 ```
 
 Example _Niri_ layer rule:

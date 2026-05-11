@@ -103,6 +103,7 @@ mod imp {
             let niri = self.niri.borrow().clone();
 
             self.connect_pinned_apps();
+            self.connect_substitution();
 
             niri.spawn_event_stream({
                 let app = app.clone();
@@ -156,6 +157,7 @@ mod imp {
             let apps = obj.apps().unwrap();
             // adds pinned apps into store.
             for app_id in config.pinned_apps() {
+                let app_id = config.get_substituted(app_id);
                 let app_info = models::App::new_for_id(app_id);
                 app_info.set_is_pinned(true);
                 apps.append(&app_info);
@@ -165,6 +167,18 @@ mod imp {
                 obj,
                 move |config| {
                     obj.imp().update_pinned_apps(config);
+                }
+            ));
+        }
+
+        fn connect_substitution(&self) {
+            let obj = self.obj();
+            let config = obj.config().unwrap();
+            config.connect_app_id_substitution_notify(glib::clone!(
+                #[weak]
+                obj,
+                move |config| {
+                    obj.imp().update_substitution(config);
                 }
             ));
         }
@@ -211,6 +225,8 @@ mod imp {
                         // should be removed if no windows.
                         if app_info.windows().unwrap().n_items() == 0 {
                             to_remove.push(index as u32);
+                        } else {
+                            apps.items_changed(index as u32, 1, 1);
                         }
                     }
                 }
@@ -224,14 +240,68 @@ mod imp {
                 if already_pinned.contains(&app_id) {
                     continue;
                 }
-                if let Some((_, app_info)) = self.find_app_info(&app_id) {
+                if let Some((index, app_info)) = self.find_app_info(&app_id) {
                     app_info.set_is_pinned(true);
+                    apps.items_changed(index, 1, 1);
                 } else {
+                    let app_id = config.get_substituted(app_id);
                     let app_info = models::App::new_for_id(app_id);
                     app_info.set_is_pinned(true);
                     self.add_app_to_store(&app_info);
                 }
             }
+        }
+
+        fn update_substitution(&self, config: &config::NeoDockConfig) {
+            let obj = self.obj();
+            let apps = obj.apps().unwrap();
+
+            let mut apps_to_remove = Vec::new();
+            let mut windows_to_move = Vec::new();
+            // moves windows into their new app_infos.
+            for (app_index, app_info) in apps.into_iter().enumerate() {
+                let Some(app_info) = app_info.ok().and_downcast::<models::App>() else {
+                    continue;
+                };
+
+                let app_id = app_info.app_id();
+                let windows = app_info.windows().unwrap();
+                let mut windows_to_remove = Vec::new();
+
+                // updates substitution for windows.
+                for (window_index, window) in windows.into_iter().enumerate() {
+                    let Some(window) = window.ok().and_downcast::<niri::NiriWindow>() else {
+                        continue;
+                    };
+                    // marks windows that should be moved into other app infos.
+                    let window_app_id = config.get_substituted(window.app_id().unwrap_or_default());
+                    if window_app_id != app_id {
+                        windows_to_remove.push(window_index as u32);
+                        windows_to_move.push(window);
+                    }
+                }
+
+                // removes windows from app info.
+                for index in windows_to_remove.iter().rev() {
+                    windows.remove(*index);
+                }
+                // marks apps that should be removed.
+                if windows.n_items() == 0 {
+                    apps_to_remove.push(app_index as u32);
+                }
+            }
+
+            // removes apps from store.
+            for index in apps_to_remove.iter().rev() {
+                apps.remove(*index);
+            }
+
+            for window in windows_to_move {
+                self.add_window_to_apps(window);
+            }
+
+            // updates pinned apps.
+            self.update_pinned_apps(config);
         }
 
         /// Appends `app_info` into `apps`, and watches its `is_pinned` changes.
@@ -263,14 +333,17 @@ mod imp {
 
         /// Adds window to ListStore, grouped by `app_id`.
         fn add_window_to_apps(&self, window: niri::NiriWindow) {
-            let app_id = window.app_id().unwrap_or_default();
+            let config = self.obj().config().unwrap();
+            let app_id = config.get_substituted(window.app_id().unwrap_or_default());
             // finds app in ListStore.
             if let Some((_, app_info)) = self.find_app_info(&app_id) {
                 // adds the window to app info object.
                 app_info.add_window(window);
             } else {
                 // creates a new app info object.
-                let app_info = models::App::new_for_id(window.app_id().unwrap_or_default());
+                let config = self.obj().config().unwrap();
+                let app_id = config.get_substituted(window.app_id().unwrap_or_default());
+                let app_info = models::App::new_for_id(app_id);
                 app_info.add_window(window);
                 // and adds it to source store.
                 self.add_app_to_store(&app_info);
@@ -279,7 +352,8 @@ mod imp {
 
         fn remove_window_from_apps(&self, window: &niri::NiriWindow) {
             let apps = self.obj().apps().unwrap();
-            let app_id = window.app_id().unwrap_or_default();
+            let config = self.obj().config().unwrap();
+            let app_id = config.get_substituted(window.app_id().unwrap_or_default());
             // finds app in ListStore, and removes window from it.
             if let Some((index, app_info)) = self.find_app_info(&app_id) {
                 let remaining = app_info.remove_window(window.id());
