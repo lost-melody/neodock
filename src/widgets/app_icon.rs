@@ -189,9 +189,10 @@ mod imp {
                 return;
             };
 
-            self.icon().set_icon_name(Some(&app_info.app_id()));
-            if let Some(info) = app_info.info() {
-                self.button().set_tooltip_text(Some(&info.name()));
+            if let Some(icon) = app_info.info().and_then(|i| i.icon()) {
+                self.icon().set_from_gicon(&icon);
+            } else {
+                self.icon().set_icon_name(Some(&app_info.app_id()));
             }
 
             let obj = self.obj().clone();
