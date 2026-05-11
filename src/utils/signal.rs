@@ -6,7 +6,7 @@ use gtk::prelude::*;
 use gtk4 as gtk;
 
 /// Helper used to implement "connect_once".
-pub struct OnceCallback<F>(Rc<RefCell<Option<(F, glib::SignalHandlerId)>>>);
+pub struct OnceCallback<F>(Rc<RefCell<(Option<F>, Option<glib::SignalHandlerId>)>>);
 
 impl<F> Clone for OnceCallback<F> {
     fn clone(&self) -> Self {
@@ -14,24 +14,36 @@ impl<F> Clone for OnceCallback<F> {
     }
 }
 
-impl<F> Default for OnceCallback<F> {
-    fn default() -> Self {
-        Self(Default::default())
-    }
-}
-
 impl<F> OnceCallback<F> {
+    pub fn new(f: F) -> Self {
+        let once = Self(Default::default());
+        once.0.borrow_mut().0.replace(f);
+        once
+    }
+
     /// Stores the callback function and signal id.
-    pub fn store(&self, f: F, id: glib::SignalHandlerId) {
-        self.0.borrow_mut().replace((f, id));
+    pub fn store(&self, id: glib::SignalHandlerId) {
+        self.0.borrow_mut().1.replace(id);
     }
 
     /// Disconnects signal and returns callback if present.
     pub fn disconnect(&self, obj: &impl IsA<glib::Object>) -> Option<F> {
-        if let Some((f, id)) = self.0.borrow_mut().take() {
+        let mut tuple = self.0.borrow_mut();
+        if let Some(id) = tuple.1.take() {
             obj.disconnect(id);
-            return Some(f);
+            return tuple.0.take();
         }
         None
+    }
+}
+
+pub trait AssignCallbackExt {
+    /// Assigns signal handler id to [OnceCallback].
+    fn assign_callback<F>(self, once: &OnceCallback<F>);
+}
+
+impl AssignCallbackExt for glib::SignalHandlerId {
+    fn assign_callback<F>(self, once: &OnceCallback<F>) {
+        once.store(self);
     }
 }

@@ -50,20 +50,20 @@ where
             return;
         }
 
-        let once = signal::OnceCallback::default();
-        once.store(
-            f,
-            self.connect_root_notify({
-                let once = once.clone();
-                move |obj| {
-                    if let Some(root) = obj.root().and_downcast()
-                        && let Some(f) = once.disconnect(obj)
-                    {
-                        f(obj, root);
-                    }
+        use signal::AssignCallbackExt;
+        let once = signal::OnceCallback::new(f);
+        self.connect_root_notify(glib::clone!(
+            #[strong]
+            once,
+            move |obj| {
+                if let Some(root) = obj.root().and_downcast()
+                    && let Some(f) = once.disconnect(obj)
+                {
+                    f(obj, root);
                 }
-            }),
-        );
+            }
+        ))
+        .assign_callback(&once);
     }
 }
 
@@ -82,10 +82,10 @@ where
                 return;
             }
 
-            let once = signal::OnceCallback::default();
-            once.store(
-                f,
-                window.connect_application_notify(glib::clone!(
+            use signal::AssignCallbackExt;
+            let once = signal::OnceCallback::new(f);
+            window
+                .connect_application_notify(glib::clone!(
                     #[weak]
                     obj,
                     #[strong]
@@ -97,8 +97,8 @@ where
                             f(&obj, app);
                         }
                     }
-                )),
-            );
+                ))
+                .assign_callback(&once);
         });
     }
 }
