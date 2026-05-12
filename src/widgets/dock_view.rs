@@ -123,6 +123,7 @@ mod imp {
                                 min_children_per_line: 100
                                 max_children_per_line: 100
                                 ~
+                                add_css_class: "neodock-icon-buttons-box"
                             }
                         }
                     }

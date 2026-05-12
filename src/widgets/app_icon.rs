@@ -70,8 +70,6 @@ mod imp {
             let obj = self.obj();
 
             block!(obj.clone() {
-                add_css_class: "neodock-flowbox-child-app-icon"
-
                 set_child: Some(&_) @gtk::Overlay {
                     child: &_ @gtk::Box view {
                         ~

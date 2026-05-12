@@ -35,12 +35,11 @@ popover.menu > contents {
   min-width: var(--dock-view-min-width);
 }
 
-/* FlowBox child containing each app icon. */
-.neodock-flowbox-child-app-icon {
+.neodock-icon-buttons-box > flowboxchild {
   background-color: transparent;
   padding: 0;
 }
-.neodock-icon-button-indicators-box > * {
+.neodock-icon-button-indicators-box > flowboxchild {
   background-color: transparent;
   padding: 0;
 }
@@ -74,15 +73,14 @@ popover.menu > contents {
 }
 
 .neodock-icon-button-indicator {
-  -gtk-icon-filter: opacity(0.5);
+  -gtk-icon-filter: opacity(0.65);
 }
 .neodock-icon-button-indicator:not(:selected) {
-  -gtk-icon-filter: opacity(0.25);
+  -gtk-icon-filter: opacity(0.4);
 }
 .neodock-icon-button-indicator-focused {
-  -gtk-icon-filter: opacity(0.85);
-  transform: scale(1.2);
-  color: lighter(var(--accent-bg-color));
+  -gtk-icon-filter: none;
+  transform: scale(1.15);
 }
 
 @keyframes dock-icon-pop {
