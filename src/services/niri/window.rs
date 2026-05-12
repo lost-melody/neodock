@@ -42,6 +42,11 @@ impl NiriWindow {
         self.set_focus_timestamp_(win.focus_timestamp);
     }
 
+    /// Binds to workspace properties, and unbinds from the old ones.
+    pub fn bind_workspace(&self, workspace: &super::NiriWorkspace) {
+        self.imp().bind_workspace(workspace);
+    }
+
     pub fn set_layout_(&self, layout: ipc::WindowLayout) {
         {
             self.imp().layout_.borrow_mut().0 = layout;
@@ -108,6 +113,7 @@ mod imp {
     use gtk4 as gtk;
 
     use crate::services::niri;
+    use crate::utils::signal;
     use niri::ipc;
 
     type Obj = super::NiriWindow;
@@ -115,6 +121,8 @@ mod imp {
     #[derive(Default, glib::Properties)]
     #[properties(wrapper_type = Obj)]
     pub struct NiriWindowImpl {
+        signals: RefCell<Option<signal::Signals<niri::NiriWorkspace>>>,
+
         #[property(get, set)]
         id: Cell<u64>,
         #[property(get, set, nullable)]
@@ -125,6 +133,10 @@ mod imp {
         pid: Cell<i32>,
         #[property(get, set)]
         workspace_id: Cell<u64>,
+        #[property(get, set)]
+        workspace_idx: Cell<u8>,
+        #[property(get, set)]
+        output: RefCell<String>,
         #[property(get, set)]
         is_focused: Cell<bool>,
         #[property(get, set)]
@@ -145,6 +157,38 @@ mod imp {
         pub(super) focus_timestamp_: RefCell<Timestamp>,
         #[property(get, set)]
         closed: Cell<bool>,
+    }
+
+    impl NiriWindowImpl {
+        pub(super) fn bind_workspace(&self, workspace: &niri::NiriWorkspace) {
+            let obj = self.obj();
+            // updates properties.
+            obj.set_workspace_idx(workspace.idx());
+            obj.set_output(workspace.output().unwrap_or_default());
+            let mut signals = signal::Signals::new(workspace);
+            // connects to workspace changes and assigns to `signals`.
+            use signal::AssignSignalsExt;
+            workspace
+                .connect_idx_notify(glib::clone!(
+                    #[weak]
+                    obj,
+                    move |ws| {
+                        obj.set_workspace_idx(ws.idx());
+                    }
+                ))
+                .assign_signals(&mut signals);
+            workspace
+                .connect_output_notify(glib::clone!(
+                    #[weak]
+                    obj,
+                    move |ws| {
+                        obj.set_output(ws.output().unwrap_or_default());
+                    }
+                ))
+                .assign_signals(&mut signals);
+            // stores the new, dropping the old.
+            self.signals.replace(Some(signals));
+        }
     }
 
     #[glib::object_subclass]

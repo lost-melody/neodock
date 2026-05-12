@@ -270,6 +270,7 @@ mod imp {
             } else {
                 // opened.
                 let win = NiriWindow::new(window);
+                self.connect_window_workspace_id(&win);
                 self.windows_.borrow_mut().insert(win.id(), win.clone());
                 self.obj().set_window_created(&win);
                 win
@@ -278,6 +279,24 @@ mod imp {
                 self.apply_window_focus_changed(Some(win.id()));
             }
             is_opened
+        }
+
+        fn connect_window_workspace_id(&self, window: &NiriWindow) {
+            let obj = self.obj();
+            window.connect_workspace_id_notify(glib::clone!(
+                #[weak]
+                obj,
+                move |win| {
+                    obj.imp().on_window_workspace_id_changed(win);
+                }
+            ));
+            self.on_window_workspace_id_changed(window);
+        }
+
+        fn on_window_workspace_id_changed(&self, window: &NiriWindow) {
+            if let Some(ws) = self.workspaces_.borrow().get(&window.workspace_id()) {
+                window.bind_workspace(ws);
+            }
         }
     }
 
