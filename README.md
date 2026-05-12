@@ -9,6 +9,24 @@ built with [gtk-rs](https://gtk-rs.org).
 - [libadwaita](https://gnome.pages.gitlab.gnome.org/libadwaita/), building blocks for modern _GNOME_ applications.
 - [Tela icon theme](https://github.com/vinceliuice/Tela-icon-theme), a flat colorful design icon theme.
 
+## Screenshots
+
+<details>
+<summary>Dark</summary>
+
+![neodock-dark.png](https://i.postimg.cc/j2YQB9P0/neodock-dark.png)
+![neodock-dark-menu.png](https://i.postimg.cc/d3cmgXdX/neodock-dark-menu.png)
+
+</details>
+
+<details>
+<summary>Light</summary>
+
+![neodock-light.png](https://i.postimg.cc/gjbq15R7/neodock-light.png)
+![neodock-light-menu.png](https://i.postimg.cc/kGPFLZ8L/neodock-light-menu.png)
+
+</details>
+
 ## Build
 
 Build release binary:
