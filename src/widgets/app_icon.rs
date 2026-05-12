@@ -55,6 +55,7 @@ mod imp {
         pin_icon: RefCell<Option<gtk::Image>>,
 
         niri: RefCell<Option<niri::Niri>>,
+        indicators: RefCell<Option<gio::ListStore>>,
 
         #[property(get, set, nullable)]
         app_info: RefCell<Option<models::App>>,
@@ -104,6 +105,17 @@ mod imp {
                         ~
                         add_css_class: "neodock-icon-button-pin-icon"
                     }
+
+                    add_overlay: &_ @gtk::FlowBox dots {
+                        halign: gtk::Align::Center
+                        valign: gtk::Align::End
+                        hexpand: false
+                        selection_mode: gtk::SelectionMode::None
+                        min_children_per_line: 100
+                        max_children_per_line: 100
+                        ~
+                        add_css_class: "neodock-icon-button-indicators-box"
+                    }
                 }
             });
 
@@ -114,6 +126,9 @@ mod imp {
                 .build();
             button.add_controller(scroll.clone());
 
+            let indicators = gio::ListStore::new::<gtk::Image>();
+            dots.bind_model(Some(&indicators), |icon| icon.downcast_ref().cloned().unwrap());
+
             self.action_group.replace(Some(action_group));
             self.button.replace(Some(button));
             self.icon.replace(Some(icon));
@@ -122,6 +137,7 @@ mod imp {
             self.menu.replace(Some(menu));
             self.view.replace(Some(view));
             self.pin_icon.replace(Some(pin_icon));
+            self.indicators.replace(Some(indicators));
 
             self.bind_application();
             self.bind_root_window();
@@ -263,6 +279,8 @@ mod imp {
                 }
             };
 
+            self.update_indicators(&windows);
+
             // no windows present.
             if windows_count == 0 {
                 button.unset_state_flags(gtk::StateFlags::SELECTED);
@@ -351,6 +369,52 @@ mod imp {
                 }
             }
             Some(index)
+        }
+
+        /// Updates the windows dots indicators.
+        fn update_indicators(&self, windows: &impl IsA<gio::ListModel>) {
+            let indicators = self.indicators();
+            if windows.n_items() == 0 {
+                indicators.remove_all();
+                return;
+            }
+
+            let last_focused = self.find_last_focused(windows).unwrap();
+            let (mut left, mut right) = (0, windows.n_items());
+            while right - left > 5 {
+                if last_focused - left < right - last_focused {
+                    right -= 1;
+                } else {
+                    left += 1;
+                }
+            }
+
+            while indicators.n_items() > right - left {
+                indicators.remove(indicators.n_items() - 1);
+            }
+            while indicators.n_items() < right - left {
+                let icon = gtk::Image::builder()
+                    .icon_name("pager-checked-symbolic")
+                    .pixel_size(8)
+                    .build();
+                icon.add_css_class("neodock-icon-button-indicator");
+                indicators.append(&icon);
+            }
+
+            for i in left..right {
+                let window: niri::NiriWindow = windows.item(i).and_downcast().unwrap();
+                let icon: gtk::Image = indicators.item(i - left).and_downcast().unwrap();
+                if i == last_focused {
+                    icon.set_state_flags(gtk::StateFlags::SELECTED, false);
+                } else {
+                    icon.unset_state_flags(gtk::StateFlags::SELECTED);
+                }
+                if window.is_focused() {
+                    icon.add_css_class("neodock-icon-button-indicator-focused");
+                } else {
+                    icon.remove_css_class("neodock-icon-button-indicator-focused");
+                }
+            }
         }
 
         /// Rebuilds menu for application and its windows.
@@ -591,6 +655,10 @@ mod imp {
 
         fn pin_icon(&self) -> gtk::Image {
             self.pin_icon.borrow().as_ref().unwrap().clone()
+        }
+
+        fn indicators(&self) -> gio::ListStore {
+            self.indicators.borrow().as_ref().unwrap().clone()
         }
     }
 

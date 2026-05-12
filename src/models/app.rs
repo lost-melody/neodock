@@ -153,6 +153,9 @@ mod imp {
         pub(super) fn connect_window_updates(&self, window: &niri::NiriWindow) {
             let mut signals = signal::Signals::new(window);
             use signal::AssignSignalsExt;
+            window
+                .connect_is_focused_notify(self.on_window_changed_callback())
+                .assign_signals(&mut signals);
             // reorders windows on their workspace changed or updated.
             window
                 .connect_output_notify(self.on_window_changed_callback())

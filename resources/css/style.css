@@ -40,6 +40,10 @@ popover.menu > contents {
   background-color: transparent;
   padding: 0;
 }
+.neodock-icon-button-indicators-box > * {
+  background-color: transparent;
+  padding: 0;
+}
 
 .neodock-icon-button {
   margin: var(--dock-icon-margin);
@@ -67,6 +71,18 @@ popover.menu > contents {
 }
 .neodock-icon-button-pin-icon:not(:selected) {
   -gtk-icon-filter: grayscale(0.5);
+}
+
+.neodock-icon-button-indicator {
+  -gtk-icon-filter: opacity(0.5);
+}
+.neodock-icon-button-indicator:not(:selected) {
+  -gtk-icon-filter: opacity(0.25);
+}
+.neodock-icon-button-indicator-focused {
+  -gtk-icon-filter: opacity(0.85);
+  transform: scale(1.2);
+  color: lighter(var(--accent-bg-color));
 }
 
 @keyframes dock-icon-pop {
