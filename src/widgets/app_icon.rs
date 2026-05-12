@@ -50,6 +50,7 @@ mod imp {
         button: RefCell<Option<gtk::Button>>,
         icon: RefCell<Option<gtk::Image>>,
         right_click: RefCell<Option<gtk::GestureClick>>,
+        scroll: RefCell<Option<gtk::EventControllerScroll>>,
         menu: RefCell<Option<gtk::PopoverMenu>>,
         pin_icon: RefCell<Option<gtk::Image>>,
 
@@ -108,11 +109,16 @@ mod imp {
 
             let right_click = gtk::GestureClick::builder().button(gdk::BUTTON_SECONDARY).build();
             button.add_controller(right_click.clone());
+            let scroll = gtk::EventControllerScroll::builder()
+                .flags(gtk::EventControllerScrollFlags::BOTH_AXES | gtk::EventControllerScrollFlags::DISCRETE)
+                .build();
+            button.add_controller(scroll.clone());
 
             self.action_group.replace(Some(action_group));
             self.button.replace(Some(button));
             self.icon.replace(Some(icon));
             self.right_click.replace(Some(right_click));
+            self.scroll.replace(Some(scroll));
             self.menu.replace(Some(menu));
             self.view.replace(Some(view));
             self.pin_icon.replace(Some(pin_icon));
@@ -123,6 +129,7 @@ mod imp {
             self.connect_app_info();
             self.connect_button_clicked();
             self.connect_button_right_clicked();
+            self.connect_button_scrolled();
         }
 
         fn bind_application(&self) {
@@ -163,7 +170,7 @@ mod imp {
         }
 
         fn connect_button_clicked(&self) {
-            let obj = self.obj().clone();
+            let obj = self.obj();
             self.button().connect_clicked(glib::clone!(
                 #[weak]
                 obj,
@@ -174,12 +181,26 @@ mod imp {
         }
 
         fn connect_button_right_clicked(&self) {
-            let obj = self.obj().clone();
+            let obj = self.obj();
             self.right_click().connect_released(glib::clone!(
                 #[weak]
                 obj,
                 move |_, _, _, _| {
                     obj.imp().on_button_right_clicked();
+                }
+            ));
+        }
+
+        fn connect_button_scrolled(&self) {
+            let obj = self.obj();
+            self.scroll().connect_scroll(glib::clone!(
+                #[weak]
+                obj,
+                #[upgrade_or]
+                glib::Propagation::Proceed,
+                move |_, x, y| {
+                    obj.imp().on_button_scrolled(x as u8, y as u8);
+                    glib::Propagation::Stop
                 }
             ));
         }
@@ -227,7 +248,7 @@ mod imp {
         }
 
         fn on_windows_changed(&self, app_info: &models::App) {
-            let windows = app_info.windows().unwrap();
+            let windows = app_info.sorted_windows().unwrap();
             let app_id = app_info.app_id();
             let name = app_info.info().map(|i| i.name()).unwrap_or("Unknown".into());
             let button = self.button();
@@ -277,38 +298,59 @@ mod imp {
                 return;
             }
 
-            let mut window_id = 0;
+            let last_idx = self.find_last_focused(&windows).unwrap();
+            let window: niri::NiriWindow = windows.item(last_idx).and_downcast().unwrap();
+            if !window.is_focused() {
+                self.focus_window(window.id());
+                return;
+            }
+            self.focus_window_by_index(last_idx + 1);
+        }
+
+        fn on_button_right_clicked(&self) {
+            self.menu().popup();
+        }
+
+        fn on_button_scrolled(&self, x: u8, y: u8) {
+            let Some(app_info) = self.obj().app_info() else {
+                return;
+            };
+            let windows = app_info.sorted_windows().unwrap();
+            if windows.n_items() <= 1 {
+                return;
+            }
+            if let Some(mut index) = self.find_last_focused(&windows) {
+                // focus next or previous.
+                index = if x + y > 0 {
+                    index + 1
+                } else {
+                    index + windows.n_items() - 1
+                };
+                self.focus_window_by_index(index);
+            }
+        }
+
+        /// Returns the last focused window index.
+        fn find_last_focused(&self, windows: &impl IsA<gio::ListModel>) -> Option<u32> {
+            if windows.n_items() == 0 {
+                return None;
+            }
+            let mut index = 0;
             let mut focus_ts = ipc::Timestamp { secs: 0, nanos: 0 };
             for i in 0..windows.n_items() {
                 let window = windows.item(i).and_downcast::<niri::NiriWindow>().unwrap();
-                // focuses the next window if one is already focused.
+                // currently focused.
                 if window.is_focused() {
-                    let index = (i + 1) % windows.n_items();
-                    window_id = windows
-                        .item(index)
-                        .and_downcast::<niri::NiriWindow>()
-                        .map(|w| w.id())
-                        .unwrap_or_default();
-                    // there's only one window here.
-                    if window_id == window.id() {
-                        return;
-                    }
-                    break;
+                    return Some(i);
                 }
                 // finds the last focused window.
                 let ts = window.get_focus_timestamp();
                 if focus_ts.secs.cmp(&ts.secs).then(focus_ts.nanos.cmp(&ts.nanos)) == cmp::Ordering::Less {
                     focus_ts = ts;
-                    window_id = window.id();
+                    index = i;
                 }
             }
-            if window_id != 0 {
-                self.focus_window(window_id);
-            }
-        }
-
-        fn on_button_right_clicked(&self) {
-            self.menu().popup();
+            Some(index)
         }
 
         /// Rebuilds menu for application and its windows.
@@ -465,6 +507,16 @@ mod imp {
             submenu
         }
 
+        /// Focus a specific window by index.
+        fn focus_window_by_index(&self, mut index: u32) {
+            let app_info = self.obj().app_info().unwrap();
+            let windows = app_info.sorted_windows().unwrap();
+            index %= windows.n_items();
+            let window = windows.item(index).and_downcast::<niri::NiriWindow>().unwrap();
+            self.focus_window(window.id());
+        }
+
+        /// Focus a specific window by id.
         fn focus_window(&self, id: u64) {
             let niri = self.niri.borrow().as_ref().unwrap().clone();
             glib::spawn_future_local(async move {
@@ -527,6 +579,10 @@ mod imp {
 
         fn right_click(&self) -> gtk::GestureClick {
             self.right_click.borrow().as_ref().unwrap().clone()
+        }
+
+        fn scroll(&self) -> gtk::EventControllerScroll {
+            self.scroll.borrow().as_ref().unwrap().clone()
         }
 
         fn menu(&self) -> gtk::PopoverMenu {
