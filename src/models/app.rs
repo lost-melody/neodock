@@ -44,31 +44,15 @@ impl App {
     pub fn add_window(&self, window: niri::NiriWindow) {
         self.windows().unwrap().append(&window);
         self.notify_windows();
-        // reorders windows when their layouts changed.
-        window.connect_layout_notify(glib::clone!(
-            #[weak(rename_to=obj)]
-            self,
-            move |window| {
-                let windows = obj.windows().unwrap();
-                let id = window.id();
-                if let Some(index) =
-                    windows.find_with_equal_func(|o| o.downcast_ref::<niri::NiriWindow>().is_some_and(|w| w.id() == id))
-                {
-                    // By marking window at `index` as dirty, triggers a sorting process.
-                    windows.items_changed(index, 1, 1);
-                    obj.notify_windows();
-                }
-            }
-        ));
+        self.imp().connect_window_updates(&window);
     }
 
     /// Removes the window by the given id, and returns how many windows remaining.
     pub fn remove_window(&self, id: u64) -> u32 {
         let windows = self.windows().unwrap();
-        if let Some(index) =
-            windows.find_with_equal_func(|o| o.downcast_ref::<niri::NiriWindow>().is_some_and(|w| w.id() == id))
-        {
+        if let Some((index, _)) = self.imp().find_window(id) {
             windows.remove(index);
+            self.imp().on_window_removed(id);
         }
         self.notify_windows();
         windows.n_items()
@@ -83,10 +67,12 @@ pub fn compare_apps(a: &App, b: &App) -> Ordering {
         .then(a.app_id().cmp(&b.app_id()))
 }
 
-/// Compares two [niri::NiriWindow]s by `app_id`, `pos` and then `id`.
+/// Compares two [niri::NiriWindow]s by `app_id`, `output`, `workspace_idx`, `pos` and then `id`.
 pub fn compare_windows(a: &niri::NiriWindow, b: &niri::NiriWindow) -> Ordering {
     a.app_id()
         .cmp(&b.app_id())
+        .then(a.output().cmp(&b.output()))
+        .then(a.workspace_idx().cmp(&b.workspace_idx()))
         .then(compare_windows_pos(a, b))
         .then(a.id().cmp(&b.id()))
 }
@@ -111,6 +97,7 @@ pub fn compare_windows_pos(a: &niri::NiriWindow, b: &niri::NiriWindow) -> Orderi
 
 mod imp {
     use std::cell::{Cell, RefCell};
+    use std::collections::HashMap;
 
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
@@ -118,12 +105,17 @@ mod imp {
     use gtk4 as gtk;
 
     use crate::services::niri;
+    use crate::utils::signal;
 
     type Obj = super::App;
 
     #[derive(Default, glib::Properties)]
     #[properties(wrapper_type = Obj)]
     pub struct AppImpl {
+        /// Connected signals of windows mapped by window id,
+        /// disconnected on windows removed.
+        window_signals: RefCell<HashMap<u64, signal::Signals<niri::NiriWindow>>>,
+
         /// Source windows store, where windows should be inserted or removed.
         #[property(get)]
         windows: RefCell<Option<gio::ListStore>>,
@@ -156,6 +148,58 @@ mod imp {
             let sorted_windows = gtk::SortListModel::new(Some(windows.clone()), Some(sorter));
             self.windows.replace(Some(windows));
             self.sorted_windows.replace(Some(sorted_windows));
+        }
+
+        pub(super) fn connect_window_updates(&self, window: &niri::NiriWindow) {
+            let mut signals = signal::Signals::new(window);
+            use signal::AssignSignalsExt;
+            // reorders windows on their workspace changed or updated.
+            window
+                .connect_output_notify(self.on_window_changed_callback())
+                .assign_signals(&mut signals);
+            window
+                .connect_workspace_idx_notify(self.on_window_changed_callback())
+                .assign_signals(&mut signals);
+            // reorders windows when their layouts changed.
+            window
+                .connect_layout_notify(self.on_window_changed_callback())
+                .assign_signals(&mut signals);
+            self.window_signals.borrow_mut().insert(window.id(), signals);
+        }
+
+        pub(super) fn find_window(&self, id: u64) -> Option<(u32, niri::NiriWindow)> {
+            let windows = self.obj().windows().unwrap();
+            if let Some(index) =
+                windows.find_with_equal_func(|o| o.downcast_ref::<niri::NiriWindow>().is_some_and(|w| w.id() == id))
+                && let Some(window) = windows.item(index).and_downcast()
+            {
+                return Some((index, window));
+            }
+            None
+        }
+
+        pub(super) fn on_window_removed(&self, id: u64) {
+            self.window_signals.borrow_mut().remove(&id);
+        }
+
+        fn on_window_changed_callback(&self) -> impl Fn(&niri::NiriWindow) + 'static {
+            let obj = self.obj();
+            glib::clone!(
+                #[weak]
+                obj,
+                move |window| {
+                    obj.imp().on_window_changed(window.id());
+                }
+            )
+        }
+
+        fn on_window_changed(&self, id: u64) {
+            if let Some((index, _)) = self.find_window(id) {
+                let windows = self.obj().windows().unwrap();
+                // By marking window at `index` as dirty, triggers a sorting process.
+                windows.items_changed(index, 1, 1);
+                self.obj().notify_windows();
+            }
         }
     }
 
