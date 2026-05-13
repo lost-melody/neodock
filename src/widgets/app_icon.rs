@@ -420,8 +420,8 @@ mod imp {
             // rebuilds menu items.
             let menu = self.menu();
             let model = menu.menu_model().and_downcast::<gio::Menu>().unwrap();
-            menu.set_menu_model(None::<&gio::MenuModel>);
             model.remove_all();
+            menu.set_menu_model(None::<&gio::Menu>);
             // clears all actions.
             let action_group = self.action_group();
             for action in action_group.list_actions() {
