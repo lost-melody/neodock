@@ -61,6 +61,12 @@ I believe that by this way the configuration can be easily managed across device
 Example:
 
 ```toml
+# filters windows and apps to display.
+# valid values:
+# - "All"/"all";
+# - "SameOutput"/"same_output"/"output";
+# - "SameWorkspace"/"same_workspace"/"workspace".
+windows_filter = "same_output"
 # command to run on launcher button clicked.
 launcher_command = [
     "qs", "-c", "noctalia-shell", "ipc", "call", "launcher", "toggle",
