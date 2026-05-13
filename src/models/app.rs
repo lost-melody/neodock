@@ -43,7 +43,6 @@ impl App {
 
     pub fn add_window(&self, window: niri::NiriWindow) {
         self.windows().unwrap().append(&window);
-        self.notify_windows();
         self.imp().connect_window_updates(&window);
     }
 
@@ -54,7 +53,6 @@ impl App {
             windows.remove(index);
             self.imp().on_window_removed(id);
         }
-        self.notify_windows();
         windows.n_items()
     }
 }
@@ -201,7 +199,6 @@ mod imp {
                 let windows = self.obj().windows().unwrap();
                 // By marking window at `index` as dirty, triggers a sorting process.
                 windows.items_changed(index, 1, 1);
-                self.obj().notify_windows();
             }
         }
     }

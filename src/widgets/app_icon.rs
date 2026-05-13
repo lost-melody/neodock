@@ -239,12 +239,14 @@ mod imp {
                 }
             ));
             self.on_pinned_changed(&app_info);
-            app_info.connect_windows_notify(glib::clone!(
+            app_info.sorted_windows().unwrap().connect_items_changed(glib::clone!(
                 #[weak]
                 obj,
-                move |app_info| {
-                    obj.imp().on_windows_changed(app_info);
-                    obj.imp().build_menu_model(app_info);
+                #[weak]
+                app_info,
+                move |_, _, _, _| {
+                    obj.imp().on_windows_changed(&app_info);
+                    obj.imp().build_menu_model(&app_info);
                 }
             ));
             self.on_windows_changed(&app_info);
