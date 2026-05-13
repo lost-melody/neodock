@@ -36,6 +36,16 @@ impl App {
         self.imp().destroy();
     }
 
+    /// Checks whether some windows of this app are in the output.
+    pub fn in_output(&self, output: &str) -> bool {
+        self.imp().outputs.borrow().iter().any(|o| o == output)
+    }
+
+    /// Checks whether some windows of this app are in the workspace.
+    pub fn in_workspace(&self, idx: &u8) -> bool {
+        self.imp().workspaces.borrow().contains(idx)
+    }
+
     /// Returns the window at `pos` of the sorted store.
     pub fn get_window(&self, pos: u32) -> Option<niri::NiriWindow> {
         self.sorted_windows().unwrap().item(pos).and_downcast()
@@ -113,6 +123,10 @@ mod imp {
         /// Connected signals of windows mapped by window id,
         /// disconnected on windows removed.
         window_signals: RefCell<HashMap<u64, signal::Signals<niri::NiriWindow>>>,
+        /// Related outputs where windows are in.
+        pub(super) outputs: RefCell<Vec<String>>,
+        /// Related workspace indexes where windows are in.
+        pub(super) workspaces: RefCell<Vec<u8>>,
 
         /// Source windows store, where windows should be inserted or removed.
         #[property(get)]
@@ -146,6 +160,18 @@ mod imp {
             let sorted_windows = gtk::SortListModel::new(Some(windows.clone()), Some(sorter));
             self.windows.replace(Some(windows));
             self.sorted_windows.replace(Some(sorted_windows));
+
+            self.connect_windows_items_changed();
+        }
+
+        fn connect_windows_items_changed(&self) {
+            let obj = self.obj();
+            obj.windows().unwrap().connect_items_changed(glib::clone!(
+                #[weak] obj,
+                move |_, _, _, _| {
+                    obj.imp().on_windows_changed();
+                }
+            ));
         }
 
         pub(super) fn connect_window_updates(&self, window: &niri::NiriWindow) {
@@ -199,6 +225,27 @@ mod imp {
                 let windows = self.obj().windows().unwrap();
                 // By marking window at `index` as dirty, triggers a sorting process.
                 windows.items_changed(index, 1, 1);
+                self.on_windows_changed();
+            }
+        }
+
+        /// Updates apps related output and workspaces on windows changed.
+        fn on_windows_changed(&self) {
+            let windows = self.obj().windows().unwrap();
+            // updates the related outputs and workspaces.
+            let mut outputs = self.outputs.borrow_mut();
+            let mut workspaces = self.workspaces.borrow_mut();
+            outputs.clear();
+            workspaces.clear();
+            for window in windows.into_iter() {
+                let window: niri::NiriWindow = window.ok().and_downcast().unwrap();
+                let (output, workspace) = (window.output(), window.workspace_idx());
+                if !outputs.contains(&output) {
+                    outputs.push(output);
+                }
+                if !workspaces.contains(&workspace) {
+                    workspaces.push(workspace);
+                }
             }
         }
     }
