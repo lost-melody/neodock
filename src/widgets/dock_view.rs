@@ -35,7 +35,7 @@ impl DockView {
 }
 
 mod imp {
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
 
     use declarative::{block, construct};
     use gtk::prelude::*;
@@ -64,6 +64,9 @@ mod imp {
         /// The connector of the window's output monitor, e.g. `DP-1`.
         #[property(get, set)]
         output: RefCell<String>,
+        /// The active workspace index of the current output.
+        #[property(get, set)]
+        workspace_idx: Cell<u8>,
         /// Filtered application information list to display.
         #[property(get, set)]
         apps: RefCell<Option<gtk::FilterListModel>>,
@@ -159,6 +162,7 @@ mod imp {
             });
 
             self.bind_application();
+            self.set_apps_filter();
             self.connect_state_flags();
             self.connect_launcher_button();
         }
@@ -168,11 +172,41 @@ mod imp {
             self.obj().with_neo_app(|obj, app| {
                 obj.apps().unwrap().set_model(app.sorted_apps().as_ref());
                 let config = app.config().unwrap();
+                obj.imp().connect_config(&config);
                 obj.imp().config.replace(Some(config));
                 let niri = app.niri().clone();
                 obj.imp().connect_niri_overview(&niri);
+                obj.imp().connect_niri_workspace_focus(&niri);
                 obj.imp().niri.replace(Some(niri));
             });
+        }
+
+        fn set_apps_filter(&self) {
+            let obj = self.obj();
+            let filter = gtk::CustomFilter::new(glib::clone!(
+                #[weak]
+                obj,
+                #[upgrade_or]
+                true,
+                move |app_info| {
+                    let app_info: models::App = app_info.downcast_ref().cloned().unwrap();
+                    // always displays pinned apps.
+                    if app_info.is_pinned() {
+                        return true;
+                    }
+
+                    let config = obj.imp().config.borrow().clone().unwrap();
+                    // filters apps according to configured windows filter.
+                    match config.get_windows_filter() {
+                        config::WindowsFilter::All => true,
+                        config::WindowsFilter::SameOutput => app_info.in_output(&obj.output()),
+                        config::WindowsFilter::SameWorkspace => {
+                            app_info.in_output(&obj.output()) && app_info.in_workspace(&obj.workspace_idx())
+                        }
+                    }
+                }
+            ));
+            self.obj().apps().unwrap().set_filter(Some(&filter));
         }
 
         /// Detects dock hovered events.
@@ -203,6 +237,19 @@ mod imp {
             ));
         }
 
+        fn connect_config(&self, config: &config::NeoDockConfig) {
+            let obj = self.obj().clone();
+            config.connect_windows_filter_notify(glib::clone!(
+                #[weak]
+                obj,
+                move |_| {
+                    // re-filters apps on filter config changed.
+                    let apps = obj.apps().unwrap().model().unwrap();
+                    apps.items_changed(0, apps.n_items(), apps.n_items());
+                }
+            ));
+        }
+
         /// Detects niri overview opened or closed.
         fn connect_niri_overview(&self, niri: &niri::Niri) {
             let obj = self.obj().clone();
@@ -211,6 +258,27 @@ mod imp {
                 obj,
                 move |_| {
                     obj.imp().reveal_or_hide_view();
+                }
+            ));
+        }
+
+        fn connect_niri_workspace_focus(&self, niri: &niri::Niri) {
+            let obj = self.obj().clone();
+            niri.connect_focused_workspace_notify(glib::clone!(
+                #[weak]
+                obj,
+                move |niri| {
+                    if let Some(workspace) = niri.focused_workspace()
+                        && workspace.output().unwrap_or_default() == obj.output()
+                    {
+                        obj.set_workspace_idx(workspace.idx());
+                        // re-filters apps when active workspace changed and filter set as
+                        // "same_workspace".
+                        if obj.imp().config().get_windows_filter() == config::WindowsFilter::SameWorkspace {
+                            let apps = obj.apps().unwrap().model().unwrap();
+                            apps.items_changed(0, apps.n_items(), apps.n_items());
+                        }
+                    }
                 }
             ));
         }
@@ -271,6 +339,10 @@ mod imp {
             if let Some(peek) = &*self.peek.borrow() {
                 peek.set_reveal_child(!show);
             }
+        }
+
+        fn config(&self) -> config::NeoDockConfig {
+            self.config.borrow().clone().unwrap()
         }
     }
 
