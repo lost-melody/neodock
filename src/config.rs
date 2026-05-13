@@ -4,6 +4,18 @@ use std::collections::HashMap;
 use gtk::glib;
 use gtk::subclass::prelude::*;
 use gtk4 as gtk;
+use serde::Deserialize;
+
+#[derive(Clone, Copy, Default, Deserialize, PartialEq)]
+pub enum WindowsFilter {
+    #[serde(alias = "all")]
+    All,
+    #[default]
+    #[serde(alias = "same_output", alias = "output")]
+    SameOutput,
+    #[serde(alias = "same_workspace", alias = "workspace")]
+    SameWorkspace,
+}
 
 glib::wrapper! {
     pub struct NeoDockConfig(ObjectSubclass<imp::NeoDockConfigImpl>);
@@ -22,6 +34,10 @@ impl NeoDockConfig {
 
     pub fn destroy(&self) {
         self.imp().destroy();
+    }
+
+    pub fn get_windows_filter(&self) -> WindowsFilter {
+        self.imp().windows_filter_.get()
     }
 
     pub fn get_app_id_substitution<'c>(&'c self) -> Ref<'c, HashMap<String, String>> {
@@ -44,6 +60,7 @@ mod imp {
     use gtk4 as gtk;
     use serde::Deserialize;
 
+    use super::WindowsFilter;
     use crate::constants::{CONFIG_DIR, CONFIG_FILE};
     use crate::utils::log;
 
@@ -51,6 +68,8 @@ mod imp {
 
     #[derive(Deserialize)]
     struct Config {
+        #[serde(default)]
+        windows_filter: WindowsFilter,
         #[serde(default = "Config::default_launcher_command")]
         launcher_command: Vec<String>,
         #[serde(default)]
@@ -76,6 +95,12 @@ mod imp {
         /// Command to run on launcher button clicked.
         #[property(get)]
         launcher_command: RefCell<Vec<String>>,
+        /// Placeholder for `windows_filter` notifications.
+        ///
+        /// Filters app icons and windows by their `output`s and `workspace`s.
+        #[property(get)]
+        windows_filter: Cell<bool>,
+        pub(super) windows_filter_: Cell<WindowsFilter>,
         /// Pinned applications.
         #[property(get)]
         pinned_apps: RefCell<Vec<String>>,
@@ -137,6 +162,11 @@ mod imp {
                     return;
                 }
             };
+
+            if self.windows_filter_.get() != config.windows_filter {
+                self.windows_filter_.set(config.windows_filter);
+                self.obj().notify_windows_filter();
+            }
 
             if *self.launcher_command.borrow() != config.launcher_command {
                 self.launcher_command.replace(config.launcher_command);
