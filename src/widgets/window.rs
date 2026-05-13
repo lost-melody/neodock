@@ -32,6 +32,7 @@ impl NeoWindow {
         window.set_margin(Edge::Bottom, 0);
         // output connector.
         window.set_output(monitor.connector().unwrap_or_default());
+        window.view().unwrap().set_output(window.output());
 
         window
     }

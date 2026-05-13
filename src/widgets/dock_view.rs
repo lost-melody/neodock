@@ -159,7 +159,6 @@ mod imp {
             });
 
             self.bind_application();
-            self.bind_root_window();
             self.connect_state_flags();
             self.connect_launcher_button();
         }
@@ -173,16 +172,6 @@ mod imp {
                 let niri = app.niri().clone();
                 obj.imp().connect_niri_overview(&niri);
                 obj.imp().niri.replace(Some(niri));
-            });
-        }
-
-        /// Finds the [crate::NeoWindow] and retrieves the output connector.
-        fn bind_root_window(&self) {
-            self.obj().with_neo_window(|_, win| {
-                win.connect_output_notify(|win| {
-                    let output = win.output();
-                    log::message!("window output: {output}");
-                });
             });
         }
 
