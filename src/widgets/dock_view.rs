@@ -145,7 +145,7 @@ mod imp {
             });
 
             let motion = gtk::EventControllerMotion::new();
-            self.obj().add_controller(motion.clone());
+            obj.add_controller(motion.clone());
 
             self.motion.replace(Some(motion));
             self.revealer.replace(Some(revealer));
@@ -154,17 +154,27 @@ mod imp {
             self.view.replace(Some(view));
 
             let model = obj.apps().unwrap();
-            flow_box.bind_model(Some(&model), |o| {
-                let app_info = o.downcast_ref::<models::App>().unwrap();
-                let app_icon = widgets::AppIcon::new();
-                app_icon.set_app_info(Some(app_info));
-                app_icon.upcast()
-            });
+            flow_box.bind_model(
+                Some(&model),
+                glib::clone!(
+                    #[weak]
+                    obj,
+                    #[upgrade_or_else]
+                    || unreachable!(),
+                    move |o| {
+                        let app_info = o.downcast_ref::<models::App>().unwrap();
+                        let app_icon = widgets::AppIcon::new();
+                        app_icon.set_app_info(Some(app_info));
+                        app_icon.set_dock_view(obj);
+                        app_icon.upcast()
+                    }
+                ),
+            );
 
             self.bind_application();
-            self.set_apps_filter();
             self.connect_state_flags();
             self.connect_launcher_button();
+            self.connect_workspace_idx();
         }
 
         /// Finds the [crate::NeoDockApp] and retrieves the [niri::Niri] object.
@@ -174,8 +184,10 @@ mod imp {
                 let config = app.config().unwrap();
                 obj.imp().connect_config(&config);
                 obj.imp().config.replace(Some(config));
+                obj.imp().set_apps_filter();
                 let niri = app.niri().clone();
                 obj.imp().connect_niri_overview(&niri);
+                obj.imp().connect_niri_workspaces_changed(&niri);
                 obj.imp().connect_niri_workspace_focus(&niri);
                 obj.imp().niri.replace(Some(niri));
             });
@@ -238,7 +250,7 @@ mod imp {
         }
 
         fn connect_config(&self, config: &config::NeoDockConfig) {
-            let obj = self.obj().clone();
+            let obj = self.obj();
             config.connect_windows_filter_notify(glib::clone!(
                 #[weak]
                 obj,
@@ -252,7 +264,7 @@ mod imp {
 
         /// Detects niri overview opened or closed.
         fn connect_niri_overview(&self, niri: &niri::Niri) {
-            let obj = self.obj().clone();
+            let obj = self.obj();
             niri.connect_overview_is_open_notify(glib::clone!(
                 #[weak]
                 obj,
@@ -262,8 +274,25 @@ mod imp {
             ));
         }
 
+        fn connect_niri_workspaces_changed(&self, niri: &niri::Niri) {
+            let obj = self.obj();
+            niri.connect_workspaces_notify(glib::clone!(
+                #[weak]
+                obj,
+                move |niri| {
+                    // finds the active workspace of output on changed.
+                    for workspace in niri.get_workspaces().values() {
+                        if workspace.is_active() && workspace.output().unwrap_or_default() == obj.output() {
+                            obj.set_workspace_idx(workspace.idx());
+                            break;
+                        }
+                    }
+                }
+            ));
+        }
+
         fn connect_niri_workspace_focus(&self, niri: &niri::Niri) {
-            let obj = self.obj().clone();
+            let obj = self.obj();
             niri.connect_focused_workspace_notify(glib::clone!(
                 #[weak]
                 obj,
@@ -272,15 +301,20 @@ mod imp {
                         && workspace.output().unwrap_or_default() == obj.output()
                     {
                         obj.set_workspace_idx(workspace.idx());
-                        // re-filters apps when active workspace changed and filter set as
-                        // "same_workspace".
-                        if obj.imp().config().get_windows_filter() == config::WindowsFilter::SameWorkspace {
-                            let apps = obj.apps().unwrap().model().unwrap();
-                            apps.items_changed(0, apps.n_items(), apps.n_items());
-                        }
                     }
                 }
             ));
+        }
+
+        fn connect_workspace_idx(&self) {
+            self.obj().connect_workspace_idx_notify(glib::clone!(move |obj| {
+                // re-filters apps when active workspace changed and filter set as
+                // "same_workspace".
+                if obj.imp().config().get_windows_filter() == config::WindowsFilter::SameWorkspace {
+                    let apps = obj.apps().unwrap().model().unwrap();
+                    apps.items_changed(0, apps.n_items(), apps.n_items());
+                }
+            }));
         }
 
         /// Reveals the main view on hovered or overview opened;

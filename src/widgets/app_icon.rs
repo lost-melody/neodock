@@ -35,11 +35,13 @@ mod imp {
     use gtk4 as gtk;
     use unicode_width::UnicodeWidthChar;
 
+    use crate::config;
     use crate::models;
     use crate::prelude::*;
     use crate::services::niri;
     use crate::services::niri::ipc;
     use crate::utils::log;
+    use crate::widgets;
 
     type Obj = super::AppIcon;
 
@@ -54,11 +56,17 @@ mod imp {
         menu: RefCell<Option<gtk::PopoverMenu>>,
         pin_icon: RefCell<Option<gtk::Image>>,
 
+        config: RefCell<Option<config::NeoDockConfig>>,
         niri: RefCell<Option<niri::Niri>>,
         indicators: RefCell<Option<gio::ListStore>>,
 
         #[property(get, set, nullable)]
         app_info: RefCell<Option<models::App>>,
+        /// Filtered windows according to the configured windows filter.
+        #[property(get, set)]
+        windows: RefCell<Option<gtk::FilterListModel>>,
+        #[property(get, set)]
+        dock_view: RefCell<Option<widgets::DockView>>,
         #[property(get)]
         view: RefCell<Option<gtk::Box>>,
     }
@@ -136,6 +144,10 @@ mod imp {
             self.view.replace(Some(view));
             self.pin_icon.replace(Some(pin_icon));
             self.indicators.replace(Some(indicators));
+            self.windows.replace(Some(gtk::FilterListModel::new(
+                None::<gio::ListModel>,
+                None::<gtk::Filter>,
+            )));
 
             self.bind_application();
             self.bind_root_window();
@@ -144,10 +156,15 @@ mod imp {
             self.connect_button_clicked();
             self.connect_button_right_clicked();
             self.connect_button_scrolled();
+            self.connect_dock_view();
         }
 
         fn bind_application(&self) {
             self.obj().with_neo_app(|obj, app| {
+                let config = app.config().unwrap();
+                obj.imp().connect_config(&config);
+                obj.imp().config.replace(Some(config));
+                obj.imp().set_windows_filter();
                 obj.imp().niri.replace(Some(app.niri()));
             });
         }
@@ -175,6 +192,62 @@ mod imp {
                     }
                 ));
             });
+        }
+
+        fn set_windows_filter(&self) {
+            let obj = self.obj();
+            let windows = self.windows.borrow().clone().unwrap();
+            let filter = gtk::CustomFilter::new(glib::clone!(
+                #[weak]
+                obj,
+                #[upgrade_or]
+                true,
+                move |window| {
+                    let window: niri::NiriWindow = window.downcast_ref().cloned().unwrap();
+                    let config = obj.imp().config();
+                    let dock_view = obj.dock_view().unwrap();
+                    // filters windows according to the configured windows filter.
+                    match config.get_windows_filter() {
+                        config::WindowsFilter::All => true,
+                        config::WindowsFilter::SameOutput => window.output() == dock_view.output(),
+                        config::WindowsFilter::SameWorkspace => {
+                            window.output() == dock_view.output() && window.workspace_idx() == dock_view.workspace_idx()
+                        }
+                    }
+                }
+            ));
+            windows.set_filter(Some(&filter));
+        }
+
+        fn connect_config(&self, config: &config::NeoDockConfig) {
+            let obj = self.obj();
+            config.connect_windows_filter_notify(glib::clone!(
+                #[weak]
+                obj,
+                move |_| {
+                    // re-filters windows on config updated.
+                    let windows = obj.windows().unwrap().model().unwrap();
+                    windows.items_changed(0, windows.n_items(), windows.n_items());
+                }
+            ));
+        }
+
+        fn connect_dock_view(&self) {
+            self.obj()
+                .connect_dock_view_notify(|obj| obj.imp().connect_workspace_idx());
+        }
+
+        fn connect_workspace_idx(&self) {
+            let obj = self.obj();
+            obj.dock_view().unwrap().connect_workspace_idx_notify(glib::clone!(
+                #[weak]
+                obj,
+                move |_| {
+                    // re-filters windows on focusing workspaces.
+                    let windows = obj.windows().unwrap().model().unwrap();
+                    windows.items_changed(0, windows.n_items(), windows.n_items());
+                }
+            ));
         }
 
         fn connect_app_info(&self) {
@@ -239,7 +312,10 @@ mod imp {
                 }
             ));
             self.on_pinned_changed(&app_info);
-            app_info.sorted_windows().unwrap().connect_items_changed(glib::clone!(
+            let sorted = app_info.sorted_windows().unwrap();
+            let filtered = obj.windows().unwrap();
+            filtered.set_model(Some(&sorted));
+            filtered.connect_items_changed(glib::clone!(
                 #[weak]
                 obj,
                 #[weak]
@@ -264,7 +340,7 @@ mod imp {
         }
 
         fn on_windows_changed(&self, app_info: &models::App) {
-            let windows = app_info.sorted_windows().unwrap();
+            let windows = self.obj().windows().unwrap();
             let app_id = app_info.app_id();
             let name = app_info.info().map(|i| i.name()).unwrap_or("Unknown".into());
             let button = self.button();
@@ -308,7 +384,7 @@ mod imp {
             let Some(app_info) = self.obj().app_info() else {
                 return;
             };
-            let windows = app_info.sorted_windows().unwrap();
+            let windows = self.obj().windows().unwrap();
             if windows.n_items() == 0 {
                 if let Some(info) = app_info.info() {
                     _ = info.launch(&[], None::<&gio::AppLaunchContext>);
@@ -330,10 +406,7 @@ mod imp {
         }
 
         fn on_button_scrolled(&self, x: u8, y: u8) {
-            let Some(app_info) = self.obj().app_info() else {
-                return;
-            };
-            let windows = app_info.sorted_windows().unwrap();
+            let windows = self.obj().windows().unwrap();
             if windows.n_items() <= 1 {
                 return;
             }
@@ -437,7 +510,7 @@ mod imp {
             }
 
             // windows actions.
-            let windows = app_info.sorted_windows().unwrap();
+            let windows = self.obj().windows().unwrap();
             if let Some((label, section)) = self.build_menu_for_windows(&action_group, windows.upcast_ref()) {
                 model.append_section(Some(&label), &section);
             }
@@ -573,8 +646,7 @@ mod imp {
 
         /// Focus a specific window by index.
         fn focus_window_by_index(&self, mut index: u32) {
-            let app_info = self.obj().app_info().unwrap();
-            let windows = app_info.sorted_windows().unwrap();
+            let windows = self.obj().windows().unwrap();
             index %= windows.n_items();
             let window = windows.item(index).and_downcast::<niri::NiriWindow>().unwrap();
             self.focus_window(window.id());
@@ -627,6 +699,10 @@ mod imp {
                 bytes += c.len_utf8();
             }
             label
+        }
+
+        fn config(&self) -> config::NeoDockConfig {
+            self.config.borrow().clone().unwrap()
         }
 
         fn action_group(&self) -> gio::SimpleActionGroup {
