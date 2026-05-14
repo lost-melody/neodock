@@ -30,9 +30,13 @@ impl NeoWindow {
         window.set_layer(Layer::Top);
         window.set_anchor(Edge::Bottom, true);
         window.set_margin(Edge::Bottom, 0);
-        // output connector.
-        window.set_output(monitor.connector().unwrap_or_default());
-        window.view().unwrap().set_output(window.output());
+        // binds monitor's connector to dock view's output.
+        let dock_view = window.view().unwrap();
+        monitor
+            .bind_property("connector", &dock_view, "output")
+            .transform_to(|_, output: Option<String>| Some(output.unwrap_or_default()))
+            .flags(glib::BindingFlags::SYNC_CREATE)
+            .build();
 
         window
     }
@@ -58,9 +62,6 @@ mod imp {
     #[derive(Default, glib::Properties)]
     #[properties(wrapper_type = Obj)]
     pub struct NeoWindowImpl {
-        /// The connector of the window's output monitor, e.g. `DP-1`.
-        #[property(get, set)]
-        output: RefCell<String>,
         #[property(get)]
         view: RefCell<Option<widgets::DockView>>,
     }
