@@ -131,6 +131,8 @@ mod imp {
                 .flags(gtk::EventControllerScrollFlags::BOTH_AXES | gtk::EventControllerScrollFlags::DISCRETE)
                 .build();
             button.add_controller(scroll.clone());
+            let drop_target = gtk::DropTarget::new(gdk::FileList::static_type(), gdk::DragAction::COPY);
+            button.add_controller(drop_target.clone());
 
             let indicators = gio::ListStore::new::<gtk::Image>();
             dots.bind_model(Some(&indicators), |icon| icon.downcast_ref().cloned().unwrap());
@@ -153,6 +155,7 @@ mod imp {
             self.bind_root_window();
 
             self.connect_app_info();
+            self.connect_drop_target(&drop_target);
             self.connect_button_clicked();
             self.connect_button_right_clicked();
             self.connect_button_scrolled();
@@ -254,6 +257,19 @@ mod imp {
             self.obj().connect_app_info_notify(|obj| {
                 obj.imp().on_app_info_changed();
             });
+        }
+
+        fn connect_drop_target(&self, drop_target: &gtk::DropTarget) {
+            let obj = self.obj();
+            drop_target.connect_drop(glib::clone!(
+                #[weak]
+                obj,
+                #[upgrade_or_default]
+                move |_, value, _, _| {
+                    let file_list: gdk::FileList = value.get().unwrap();
+                    obj.imp().on_drop_target_drop(file_list)
+                }
+            ));
         }
 
         fn connect_button_clicked(&self) {
@@ -377,6 +393,16 @@ mod imp {
                 self.button()
                     .set_tooltip_text(Some(&format!("{name} ({count} windows){app_id_mark}")))
             }
+        }
+
+        fn on_drop_target_drop(&self, file_list: gdk::FileList) -> bool {
+            if let Some(info) = self.obj().app_info().and_then(|app| app.info())
+                && (info.supports_files() || info.supports_uris())
+            {
+                _ = info.launch(&file_list.files(), None::<&gdk::AppLaunchContext>);
+                return true;
+            }
+            false
         }
 
         /// Launches application if no windows present, or cycles focus among windows.

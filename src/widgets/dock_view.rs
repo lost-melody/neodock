@@ -40,7 +40,7 @@ mod imp {
     use declarative::{block, construct};
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
-    use gtk::{gio, glib};
+    use gtk::{gdk, gio, glib};
     use gtk4 as gtk;
 
     use crate::config;
@@ -146,6 +146,9 @@ mod imp {
 
             let motion = gtk::EventControllerMotion::new();
             obj.add_controller(motion.clone());
+
+            let drop_target = gtk::DropTarget::new(gdk::FileList::static_type(), gdk::DragAction::COPY);
+            obj.add_controller(drop_target);
 
             self.motion.replace(Some(motion));
             self.revealer.replace(Some(revealer));
@@ -352,7 +355,8 @@ mod imp {
         fn should_reveal_view(&self) -> bool {
             let flags = self.obj().state_flags();
             let prelight = flags & gtk::StateFlags::PRELIGHT != gtk::StateFlags::NORMAL;
-            if prelight {
+            let drop_active = flags & gtk::StateFlags::DROP_ACTIVE != gtk::StateFlags::NORMAL;
+            if prelight || drop_active {
                 true
             } else if let Some(niri) = &*self.niri.borrow() {
                 niri.overview_is_open()
