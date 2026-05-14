@@ -36,8 +36,8 @@ impl NeoDockConfig {
         self.imp().destroy();
     }
 
-    pub fn get_windows_filter(&self) -> WindowsFilter {
-        self.imp().windows_filter_.get()
+    pub fn get_filter_windows(&self) -> WindowsFilter {
+        self.imp().filter_windows_.get()
     }
 
     pub fn get_app_id_substitution<'c>(&'c self) -> Ref<'c, HashMap<String, String>> {
@@ -69,7 +69,7 @@ mod imp {
     #[derive(Deserialize)]
     struct Config {
         #[serde(default)]
-        windows_filter: WindowsFilter,
+        filter_windows: WindowsFilter,
         #[serde(default = "Config::default_launcher_command")]
         launcher_command: Vec<String>,
         #[serde(default)]
@@ -99,8 +99,8 @@ mod imp {
         ///
         /// Filters app icons and windows by their `output`s and `workspace`s.
         #[property(get)]
-        windows_filter: Cell<bool>,
-        pub(super) windows_filter_: Cell<WindowsFilter>,
+        filter_windows: Cell<bool>,
+        pub(super) filter_windows_: Cell<WindowsFilter>,
         /// Pinned applications.
         #[property(get)]
         pinned_apps: RefCell<Vec<String>>,
@@ -163,9 +163,9 @@ mod imp {
                 }
             };
 
-            if self.windows_filter_.get() != config.windows_filter {
-                self.windows_filter_.set(config.windows_filter);
-                self.obj().notify_windows_filter();
+            if self.filter_windows_.get() != config.filter_windows {
+                self.filter_windows_.set(config.filter_windows);
+                self.obj().notify_filter_windows();
             }
 
             if *self.launcher_command.borrow() != config.launcher_command {

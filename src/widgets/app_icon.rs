@@ -207,7 +207,7 @@ mod imp {
                     let config = obj.imp().config();
                     let dock_view = obj.dock_view().unwrap();
                     // filters windows according to the configured windows filter.
-                    match config.get_windows_filter() {
+                    match config.get_filter_windows() {
                         config::WindowsFilter::All => true,
                         config::WindowsFilter::SameOutput => window.output() == dock_view.output(),
                         config::WindowsFilter::SameWorkspace => {
@@ -221,7 +221,7 @@ mod imp {
 
         fn connect_config(&self, config: &config::NeoDockConfig) {
             let obj = self.obj();
-            config.connect_windows_filter_notify(glib::clone!(
+            config.connect_filter_windows_notify(glib::clone!(
                 #[weak]
                 obj,
                 move |_| {

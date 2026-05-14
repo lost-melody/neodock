@@ -61,12 +61,13 @@ I believe that by this way the configuration can be easily managed across device
 Example:
 
 ```toml
-# filters windows and apps to display.
+# filters windows and apps by whether they are in the
+# same output or workspace where the dock window is in.
 # valid values:
 # - "All"/"all";
 # - "SameOutput"/"same_output"/"output";
 # - "SameWorkspace"/"same_workspace"/"workspace".
-windows_filter = "same_output"
+filter_windows = "same_output"
 # command to run on launcher button clicked.
 launcher_command = [
     "qs", "-c", "noctalia-shell", "ipc", "call", "launcher", "toggle",

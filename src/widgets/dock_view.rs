@@ -209,7 +209,7 @@ mod imp {
 
                     let config = obj.imp().config.borrow().clone().unwrap();
                     // filters apps according to configured windows filter.
-                    match config.get_windows_filter() {
+                    match config.get_filter_windows() {
                         config::WindowsFilter::All => true,
                         config::WindowsFilter::SameOutput => app_info.in_output(&obj.output()),
                         config::WindowsFilter::SameWorkspace => {
@@ -251,7 +251,7 @@ mod imp {
 
         fn connect_config(&self, config: &config::NeoDockConfig) {
             let obj = self.obj();
-            config.connect_windows_filter_notify(glib::clone!(
+            config.connect_filter_windows_notify(glib::clone!(
                 #[weak]
                 obj,
                 move |_| {
@@ -310,7 +310,7 @@ mod imp {
             self.obj().connect_workspace_idx_notify(glib::clone!(move |obj| {
                 // re-filters apps when active workspace changed and filter set as
                 // "same_workspace".
-                if obj.imp().config().get_windows_filter() == config::WindowsFilter::SameWorkspace {
+                if obj.imp().config().get_filter_windows() == config::WindowsFilter::SameWorkspace {
                     let apps = obj.apps().unwrap().model().unwrap();
                     apps.items_changed(0, apps.n_items(), apps.n_items());
                 }
