@@ -4,9 +4,58 @@ use std::collections::HashMap;
 use gtk::glib;
 use gtk::subclass::prelude::*;
 use gtk4 as gtk;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Default, Deserialize, PartialEq)]
+#[derive(Deserialize, Serialize)]
+struct Config {
+    #[serde(default = "Config::default_auto_hide")]
+    pub auto_hide: bool,
+    #[serde(default = "Config::default_auto_hide_delay")]
+    pub auto_hide_delay: u64,
+    #[serde(default = "Config::default_show_in_overview")]
+    pub show_in_overview: bool,
+    #[serde(default)]
+    pub dock_layer: DockLayer,
+    #[serde(default)]
+    pub filter_windows: WindowsFilter,
+    #[serde(default = "Config::default_launcher_command")]
+    pub launcher_command: Vec<String>,
+    #[serde(default)]
+    pub pinned_apps: Vec<String>,
+    #[serde(default)]
+    pub app_id_substitution: HashMap<String, String>,
+}
+
+impl Config {
+    fn default_auto_hide() -> bool {
+        true
+    }
+    fn default_auto_hide_delay() -> u64 {
+        800
+    }
+    fn default_show_in_overview() -> bool {
+        true
+    }
+    fn default_launcher_command() -> Vec<String> {
+        ["qs", "-c", "noctalia-shell", "ipc", "call", "launcher", "toggle"]
+            .iter()
+            .map(|&s| s.into())
+            .collect()
+    }
+}
+
+#[derive(Clone, Copy, Default, Deserialize, PartialEq, Serialize)]
+pub enum DockLayer {
+    #[serde(alias = "bottom")]
+    Bottom,
+    #[default]
+    #[serde(alias = "top")]
+    Top,
+    #[serde(alias = "overlay")]
+    Overlay,
+}
+
+#[derive(Clone, Copy, Default, Deserialize, PartialEq, Serialize)]
 pub enum WindowsFilter {
     #[serde(alias = "all")]
     All,
@@ -36,6 +85,10 @@ impl NeoDockConfig {
         self.imp().destroy();
     }
 
+    pub fn get_dock_layer(&self) -> DockLayer {
+        self.imp().dock_layer_.get()
+    }
+
     pub fn get_filter_windows(&self) -> WindowsFilter {
         self.imp().filter_windows_.get()
     }
@@ -58,40 +111,33 @@ mod imp {
     use gtk::subclass::prelude::*;
     use gtk::{gio, glib};
     use gtk4 as gtk;
-    use serde::Deserialize;
 
-    use super::WindowsFilter;
     use crate::constants::{CONFIG_DIR, CONFIG_FILE};
     use crate::utils::log;
 
     type Obj = super::NeoDockConfig;
-
-    #[derive(Deserialize)]
-    struct Config {
-        #[serde(default)]
-        filter_windows: WindowsFilter,
-        #[serde(default = "Config::default_launcher_command")]
-        launcher_command: Vec<String>,
-        #[serde(default)]
-        pinned_apps: Vec<String>,
-        #[serde(default)]
-        app_id_substitution: HashMap<String, String>,
-    }
-
-    impl Config {
-        fn default_launcher_command() -> Vec<String> {
-            ["qs", "-c", "noctalia-shell", "ipc", "call", "launcher", "toggle"]
-                .iter()
-                .map(|&s| s.into())
-                .collect()
-        }
-    }
 
     #[derive(Default, glib::Properties)]
     #[properties(wrapper_type = Obj)]
     pub struct NeoDockConfigImpl {
         monitor: RefCell<Option<gio::FileMonitor>>,
 
+        /// Whether dock should hide automatically after a delay.
+        /// Exclusive zone is enabled when `auto_hide` is off.
+        #[property(get)]
+        auto_hide: Cell<bool>,
+        /// Delay before auto hiding in milliseconds.
+        #[property(get)]
+        auto_hide_delay: Cell<u64>,
+        /// Whether dock should always display in overview even when auto hide is on.
+        #[property(get)]
+        show_in_overview: Cell<bool>,
+        /// Placeholder for `dock_layer` notifications.
+        ///
+        /// In which layer dock window should display.
+        #[property(get)]
+        dock_layer: Cell<bool>,
+        pub(super) dock_layer_: Cell<super::DockLayer>,
         /// Command to run on launcher button clicked.
         #[property(get)]
         launcher_command: RefCell<Vec<String>>,
@@ -100,7 +146,7 @@ mod imp {
         /// Filters app icons and windows by their `output`s and `workspace`s.
         #[property(get)]
         filter_windows: Cell<bool>,
-        pub(super) filter_windows_: Cell<WindowsFilter>,
+        pub(super) filter_windows_: Cell<super::WindowsFilter>,
         /// Pinned applications.
         #[property(get)]
         pinned_apps: RefCell<Vec<String>>,
@@ -155,13 +201,33 @@ mod imp {
                     return;
                 }
             };
-            let mut config = match toml::from_slice::<Config>(&data) {
+            let mut config = match toml::from_slice::<super::Config>(&data) {
                 Ok(config) => config,
                 Err(err) => {
                     log::warning!("failed to parse config data: {err}");
                     return;
                 }
             };
+
+            if self.auto_hide.get() != config.auto_hide {
+                self.auto_hide.set(config.auto_hide);
+                self.obj().notify_auto_hide();
+            }
+
+            if self.auto_hide_delay.get() != config.auto_hide_delay {
+                self.auto_hide_delay.set(config.auto_hide_delay);
+                self.obj().notify_auto_hide_delay();
+            }
+
+            if self.show_in_overview.get() != config.show_in_overview {
+                self.show_in_overview.set(config.show_in_overview);
+                self.obj().notify_show_in_overview();
+            }
+
+            if self.dock_layer_.get() != config.dock_layer {
+                self.dock_layer_.set(config.dock_layer);
+                self.obj().notify_dock_layer();
+            }
 
             if self.filter_windows_.get() != config.filter_windows {
                 self.filter_windows_.set(config.filter_windows);
