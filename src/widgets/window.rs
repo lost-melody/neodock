@@ -3,7 +3,7 @@ use gtk::subclass::prelude::*;
 use gtk::{gdk, glib};
 use gtk4 as gtk;
 use gtk4_layer_shell as layer_shell;
-use layer_shell::{Edge, Layer, LayerShell};
+use layer_shell::{Edge, LayerShell};
 
 glib::wrapper! {
     pub struct NeoWindow(ObjectSubclass<imp::NeoWindowImpl>)
@@ -27,9 +27,7 @@ impl NeoWindow {
         window.init_layer_shell();
         window.set_namespace(Some("neodock"));
         window.set_monitor(Some(monitor));
-        window.set_layer(Layer::Top);
         window.set_anchor(Edge::Bottom, true);
-        window.set_margin(Edge::Bottom, 0);
         // binds monitor's connector to dock view's output.
         let dock_view = window.view().unwrap();
         monitor
@@ -54,7 +52,11 @@ mod imp {
     use declarative::block;
     use gtk::glib;
     use gtk4 as gtk;
+    use gtk4_layer_shell as layer_shell;
+    use layer_shell::{Layer, LayerShell};
 
+    use crate::config;
+    use crate::prelude::*;
     use crate::widgets;
 
     type Obj = super::NeoWindow;
@@ -62,6 +64,8 @@ mod imp {
     #[derive(Default, glib::Properties)]
     #[properties(wrapper_type = Obj)]
     pub struct NeoWindowImpl {
+        config: RefCell<Option<config::NeoDockConfig>>,
+
         #[property(get)]
         view: RefCell<Option<widgets::DockView>>,
     }
@@ -81,6 +85,48 @@ mod imp {
             });
 
             self.view.replace(Some(view));
+
+            self.bind_application();
+        }
+
+        fn bind_application(&self) {
+            self.obj().with_neo_app(|win, app| {
+                let config = app.config().unwrap();
+                win.imp().connect_config(&config);
+                win.imp().config.replace(Some(config));
+            });
+        }
+
+        fn connect_config(&self, config: &config::NeoDockConfig) {
+            let obj = self.obj();
+            config.connect_auto_hide_notify(glib::clone!(
+                #[weak]
+                obj,
+                move |config| {
+                    if config.auto_hide() {
+                        obj.set_exclusive_zone(0);
+                    } else {
+                        obj.auto_exclusive_zone_enable();
+                    }
+                }
+            ));
+            config.connect_dock_layer_notify(glib::clone!(
+                #[weak]
+                obj,
+                move |config| {
+                    match config.get_dock_layer() {
+                        config::DockLayer::Bottom => {
+                            obj.set_layer(Layer::Bottom);
+                        }
+                        config::DockLayer::Top => {
+                            obj.set_layer(Layer::Top);
+                        }
+                        config::DockLayer::Overlay => {
+                            obj.set_layer(Layer::Overlay);
+                        }
+                    }
+                }
+            ));
         }
     }
 
