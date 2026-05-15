@@ -254,6 +254,13 @@ mod imp {
 
         fn connect_config(&self, config: &config::NeoDockConfig) {
             let obj = self.obj();
+            config.connect_auto_hide_notify(glib::clone!(
+                #[weak]
+                obj,
+                move |_| {
+                    obj.imp().reveal_or_hide_view();
+                }
+            ));
             config.connect_filter_windows_notify(glib::clone!(
                 #[weak]
                 obj,
@@ -339,9 +346,11 @@ mod imp {
                     self.show_view(true);
                 }
             } else {
-                if self.timer.borrow().is_none() {
+                if is_revealed && self.timer.borrow().is_none() {
                     let obj = self.obj().clone();
-                    let timer = glib::timeout_add_local(std::time::Duration::from_millis(800), move || {
+                    let config = self.config();
+                    let delay = std::time::Duration::from_millis(config.auto_hide_delay());
+                    let timer = glib::timeout_add_local(delay, move || {
                         // removes timer on itself.
                         obj.imp().timer.replace(None);
                         obj.imp().show_view(false);
@@ -353,6 +362,18 @@ mod imp {
         }
 
         fn should_reveal_view(&self) -> bool {
+            let Some(config) = self.config.borrow().clone() else {
+                return true;
+            };
+            if !config.auto_hide() {
+                return true;
+            }
+
+            let niri = self.niri.borrow().clone().unwrap();
+            if niri.overview_is_open() {
+                return config.show_in_overview();
+            }
+
             let flags = self.obj().state_flags();
             let prelight = flags & gtk::StateFlags::PRELIGHT != gtk::StateFlags::NORMAL;
             let drop_active = flags & gtk::StateFlags::DROP_ACTIVE != gtk::StateFlags::NORMAL;
