@@ -58,9 +58,18 @@ _NeoDock_ is configured with a config file instead of _GSettings_,
 typically `~/.config/io.github.lost-melody.NeoDock/config.toml`.
 I believe that by this way the configuration can be easily managed across devices.
 
-Example:
+Example (refer to `neodock::config::Config`):
 
 ```toml
+# whether dock should hide automatically after a delay.
+# zone is enabled when `auto_hide` is off.
+auto_hide = true
+# delay before dock auto hiding in milliseconds.
+auto_hide_delay = 800
+# whether dock should always display in overview even when auto hide is on.
+show_in_overview = true
+# in which layer dock window should display.
+dock_layer = "top"
 # filters windows and apps by whether they are in the
 # same output or workspace where the dock window is in.
 # valid values:
