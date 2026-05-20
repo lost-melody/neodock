@@ -289,7 +289,14 @@ mod imp {
                 #[weak]
                 obj,
                 move |_, _, _, _| {
-                    obj.imp().on_button_right_clicked();
+                    let imp = obj.imp();
+                    if imp.menu().menu_model().is_none()
+                        && let Some(app_info) = obj.app_info()
+                    {
+                        // builds menu model lazily.
+                        imp.build_menu_model(&app_info);
+                    }
+                    imp.on_button_right_clicked();
                 }
             ));
         }
@@ -338,11 +345,11 @@ mod imp {
                 app_info,
                 move |_, _, _, _| {
                     obj.imp().on_windows_changed(&app_info);
-                    obj.imp().build_menu_model(&app_info);
+                    // clears menu model, and lazily rebuild menu on right clicked.
+                    obj.imp().clear_menu_model();
                 }
             ));
             self.on_windows_changed(&app_info);
-            self.build_menu_model(&app_info);
         }
 
         fn on_pinned_changed(&self, app_info: &models::App) {
@@ -516,18 +523,26 @@ mod imp {
             }
         }
 
-        /// Rebuilds menu for application and its windows.
-        fn build_menu_model(&self, app_info: &models::App) {
-            // rebuilds menu items.
+        /// Clears menu model when things updated.
+        fn clear_menu_model(&self) {
             let menu = self.menu();
-            let model = menu.menu_model().and_downcast::<gio::Menu>().unwrap();
-            model.remove_all();
-            menu.set_menu_model(None::<&gio::Menu>);
-            // clears all actions.
             let action_group = self.action_group();
+            // clears menu items.
+            if let Some(model) = menu.menu_model().and_downcast_ref::<gio::Menu>() {
+                Self::release_menu(model.upcast_ref());
+                menu.set_menu_model(None::<&gio::Menu>);
+            }
+            // clears all actions.
             for action in action_group.list_actions() {
                 action_group.remove_action(&action);
             }
+        }
+
+        /// Rebuilds menu for application and its windows.
+        fn build_menu_model(&self, app_info: &models::App) {
+            let menu = self.menu();
+            let model = gio::Menu::new();
+            let action_group = self.action_group();
 
             // application actions.
             if let Some(info) = app_info.info() {
@@ -668,6 +683,18 @@ mod imp {
             }
 
             submenu
+        }
+
+        /// Recursively removes all items, sections and submenus from menu model.
+        fn release_menu(model: &gio::MenuModel) {
+            let model: &gio::Menu = model.downcast_ref().unwrap();
+            for index in 0..model.n_items() {
+                let it = model.iterate_item_links(index);
+                while let Some((_, m)) = it.next() {
+                    Self::release_menu(&m);
+                }
+            }
+            model.remove_all();
         }
 
         /// Focus a specific window by index.
