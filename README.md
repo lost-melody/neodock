@@ -138,4 +138,4 @@ popover.menu > contents {
 }
 ```
 
-> See `/path/to/repo/resources/css/style.css`.
+> See [style.css](./resources/css/style.css).
