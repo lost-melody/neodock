@@ -7,7 +7,7 @@ use gtk4 as gtk;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
-struct Config {
+pub struct Config {
     #[serde(default = "Config::default_auto_hide")]
     pub auto_hide: bool,
     #[serde(default = "Config::default_auto_hide_delay")]
