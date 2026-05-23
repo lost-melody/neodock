@@ -46,6 +46,8 @@ cargo run
 Install into `~/.cargo/bin`:
 
 ```sh
+# install from crates.io.
+cargo install neodock
 # install from local repository.
 cargo install --path .
 # install from GitHub.
