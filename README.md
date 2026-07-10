@@ -81,7 +81,7 @@ dock_layer = "top"
 filter_windows = "same_output"
 # command to run on launcher button clicked.
 launcher_command = [
-    "qs", "-c", "noctalia-shell", "ipc", "call", "launcher", "toggle",
+    "noctalia", "msg", "panel-toggle", "launcher",
 ]
 # list of application ids pinned to dock, where app_id is generally filenames
 # in `/usr/share/applications/` without a `.desktop` extension.
