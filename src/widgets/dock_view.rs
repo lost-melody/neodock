@@ -36,6 +36,7 @@ impl DockView {
 
 mod imp {
     use std::cell::{Cell, RefCell};
+    use std::process::{Command, Stdio};
 
     use declarative::{block, construct};
     use gtk::prelude::*;
@@ -245,7 +246,12 @@ mod imp {
                         log::warning!("configured launcher command is empty");
                         return;
                     }
-                    if let Err(err) = std::process::Command::new(&cmd[0]).args(&cmd[1..]).spawn() {
+                    if let Err(err) = Command::new(&cmd[0])
+                        .args(&cmd[1..])
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::null())
+                        .spawn()
+                    {
                         log::warning!("failed to spawn launcher: {err}");
                     }
                 }
