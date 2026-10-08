@@ -95,7 +95,6 @@ mod imp {
 
                         append: &_ @gtk::PopoverMenu menu {
                             has_arrow: false
-                            menu_model: &_ @gio::Menu::new() {}
                         }
                     }
                     ~
