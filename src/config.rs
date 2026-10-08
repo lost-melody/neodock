@@ -37,7 +37,7 @@ impl Config {
         true
     }
     fn default_launcher_command() -> Vec<String> {
-        ["qs", "-c", "noctalia-shell", "ipc", "call", "launcher", "toggle"]
+        ["noctalia", "msg", "panel-toggle", "launcher"]
             .iter()
             .map(|&s| s.into())
             .collect()
