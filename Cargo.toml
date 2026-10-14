@@ -6,19 +6,19 @@ license = "MIT"
 description = "An app dock for the Niri compositor"
 
 [dependencies]
-adw = { version = "0.9.1", package = "libadwaita", features = ["v1_9"] }
-anyhow = "1.0.102"
+adw = { version = "0.9.2", package = "libadwaita", features = ["v1_9"] }
+anyhow = "1.0.104"
 declarative = "0.7.3"
-futures = "0.3.32"
-gettext-rs = { version = "0.7.7", features = ["gettext-system"] }
-gio-unix = { version = "0.22.6", features = ["v2_84"] }
-gtk4 = { version = "0.11.3", features = ["gnome_50"] }
-gtk4-layer-shell = { version = "0.8.0", features = ["v1_3"] }
+futures = "0.3.34"
+gettext-rs = { version = "0.8.0", features = ["gettext-system"] }
+gio-unix = { version = "0.22.8", features = ["v2_84"] }
+gtk4 = { version = "0.11.5", features = ["gnome_50"] }
+gtk4-layer-shell = { version = "0.8.1", features = ["v1_3"] }
 niri-ipc = "26.4.0"
-serde = "1.0.228"
-serde_json = "1.0.149"
-toml = "1.1.2"
+serde = "1.0.229"
+serde_json = "1.0.154"
+toml = "1.1.8"
 unicode-width = "0.2.2"
 
 [build-dependencies]
-glib-build-tools = "0.22.0"
+glib-build-tools = "0.22.8"
