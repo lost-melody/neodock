@@ -127,6 +127,12 @@ mod imp {
         pub(super) outputs: RefCell<Vec<String>>,
         /// Related workspace indexes where windows are in.
         pub(super) workspaces: RefCell<Vec<u8>>,
+        /// Placeholder for property `windows_changed` notifications.
+        ///
+        /// This is notified when the related outputs or workspaces of windows changed,
+        /// so that consumers can re-evaluate this application.
+        #[property(get, set)]
+        windows_changed: Cell<bool>,
 
         /// Source windows store, where windows should be inserted or removed.
         #[property(get)]
@@ -229,14 +235,13 @@ mod imp {
             }
         }
 
-        /// Updates apps related output and workspaces on windows changed.
+        /// Updates apps related output and workspaces on windows changed,
+        /// and notifies `windows_changed` if they changed.
         fn on_windows_changed(&self) {
             let windows = self.obj().windows().unwrap();
-            // updates the related outputs and workspaces.
-            let mut outputs = self.outputs.borrow_mut();
-            let mut workspaces = self.workspaces.borrow_mut();
-            outputs.clear();
-            workspaces.clear();
+            // collects the related outputs and workspaces.
+            let mut outputs = Vec::new();
+            let mut workspaces = Vec::new();
             for window in windows.into_iter() {
                 let window: niri::NiriWindow = window.ok().and_downcast().unwrap();
                 let (output, workspace) = (window.output(), window.workspace_idx());
@@ -247,6 +252,18 @@ mod imp {
                     workspaces.push(workspace);
                 }
             }
+
+            let changed = {
+                let (current_outputs, current_workspaces) = (self.outputs.borrow(), self.workspaces.borrow());
+                *current_outputs != outputs || *current_workspaces != workspaces
+            };
+            if !changed {
+                return;
+            }
+
+            self.outputs.replace(outputs);
+            self.workspaces.replace(workspaces);
+            self.obj().notify_windows_changed();
         }
     }
 

@@ -154,13 +154,12 @@ mod imp {
         fn connect_pinned_apps(&self) {
             let obj = self.obj();
             let config = obj.config().unwrap();
-            let apps = obj.apps().unwrap();
             // adds pinned apps into store.
             for app_id in config.pinned_apps() {
                 let app_id = config.get_substituted(app_id);
                 let app_info = models::App::new_for_id(app_id);
                 app_info.set_is_pinned(true);
-                apps.append(&app_info);
+                self.add_app_to_store(&app_info);
             }
             config.connect_pinned_apps_notify(glib::clone!(
                 #[weak]
@@ -304,7 +303,8 @@ mod imp {
             self.update_pinned_apps(config);
         }
 
-        /// Appends `app_info` into `apps`, and watches its `is_pinned` changes.
+        /// Appends `app_info` into `apps`, and watches its `is_pinned` and
+        /// `windows_changed` changes.
         fn add_app_to_store(&self, app_info: &models::App) {
             let apps = self.obj().apps().unwrap();
             apps.append(app_info);
@@ -312,11 +312,25 @@ mod imp {
                 #[weak]
                 apps,
                 move |app| {
-                    if let Some(index) = apps.find(app) {
-                        apps.items_changed(index, 1, 1);
-                    }
+                    Self::re_evaluate_app(&apps, app);
                 }
             ));
+            // the related outputs or workspaces of an app may change while its windows
+            // are updated, in which case the app should be re-filtered by dock views.
+            app_info.connect_windows_changed_notify(glib::clone!(
+                #[weak]
+                apps,
+                move |app| {
+                    Self::re_evaluate_app(&apps, app);
+                }
+            ));
+        }
+
+        /// Marks `app` in `apps` as changed, triggering re-sorting and re-filtering.
+        fn re_evaluate_app(apps: &gio::ListStore, app: &models::App) {
+            if let Some(index) = apps.find(app) {
+                apps.items_changed(index, 1, 1);
+            }
         }
 
         /// Finds app info by `app_id` and returns it with index.
